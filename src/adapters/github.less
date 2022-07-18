@@ -96,7 +96,7 @@
         width: 100%;
         height: @header-height;
         margin: 0;
-        padding-right: 65px;
+        padding-right: 45px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -129,7 +129,8 @@
         }
 
         .octotree-header-repo,
-        .octotree-header-branch {
+        .octotree-header-branch,
+        .octotree-header-selection {
           width: 100%;
           overflow: hidden;
           white-space: nowrap;
@@ -178,6 +179,17 @@
             .icon-v2(@octicons-git-branch, @color: white, @hover-color: white);
             top: 1px;
             left: 2px;
+          }
+        }
+
+        .octotree-header-selection {
+          margin-top: 7px;
+          .selection-text {
+            font-weight: 300;
+            font-size: 13px;
+          }
+          .selection-field {
+            margin-top: 5px;
           }
         }
       }
@@ -306,6 +318,18 @@
       }
     }
 
+    .octotree-tree-view {
+      .octotree-view-body {
+        .octotree-instructions {
+          height: 500px;
+          display: flex;
+          align-items: center;
+          margin: 5px;
+          color: gray;
+        }
+      }
+    }
+
     .octotree-error-view {
       & > form {
         div {
@@ -385,6 +409,11 @@
       margin-left: 4px;
     }
   }
+  
+  .octotree-submit-button {
+    font-size: 12px;
+    margin-top: 5px;
+  }
 
   a.octotree-settings,
   a.octotree-pin,
@@ -408,7 +437,7 @@
     border-left: none;
     box-shadow: 2px 0 5px 0 rgba(118, 118, 118, 0.11);
     opacity: 1;
-    height: 94px;
+    height: 110px;
     line-height: 1;
     padding: 6px 6px;
     position: absolute;

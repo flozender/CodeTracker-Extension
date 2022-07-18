@@ -1,9 +1,9 @@
 {
-  "name": "Octotree",
+  "name": "CodeTracker",
   "version": "$VERSION",
-  "description": "GitHub on steroids",
+  "description": "Visualize code refactoring history",
   "homepage_url": "https://www.octotree.io",
-  "author": "Buu Nguyen",
+  "author": "Tayeeb Hasan",
   "manifest_version": 2,
   "minimum_chrome_version": "60",
   "icons": {

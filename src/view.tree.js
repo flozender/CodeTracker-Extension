@@ -1,65 +1,70 @@
 class TreeView {
   constructor($dom, adapter) {
+    this.treeData = 
+      {
+        "name": "40b3384",
+        "parent": "null",
+        "children": [
+          {
+            "name": "0b78aed",
+            "parent": "40b3384",
+            "children": [
+              {
+                "name": "763773c",
+                "parent": "0b78aed",
+                "children": [
+                  {
+                    "name": "e42a651",
+                    "parent": "763773c",
+                    "children": [
+                      {
+                        "name": "be134de",
+                        "parent": "e42a651",
+                        "children": [
+                          {
+                            "name": "375941f",
+                            "parent": "be134de",
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      };
+    this.treeData = [];
     this.adapter = adapter;
     this.$view = $dom.find('.octotree-tree-view');
-    this.$tree = this.$view
-      .find('.octotree-view-body')
-      .on('click.jstree', '.jstree-open>a', ({target}) => {
-        this.$jstree.close_node(target);
-      })
-      .on('click.jstree', '.jstree-closed>a', ({target}) => {
-        this.$jstree.open_node(target);
-      })
-      .on('click', this._onItemClick.bind(this))
-      .jstree({
-        core: {multiple: false, animation: 50, worker: false, themes: {responsive: false}},
-        plugins: ['wholerow', 'search', 'truncate']
-      });
+
+    // this.$tree = this.$view
+    //   .find('.octotree-view-body')
+    //   .html(`<svg>${this.chart}</svg>`)
+
+    // this.$tree.html($(".octotree-view-body").html());
+    // console.log(this.$tree);
+
   }
 
   get $jstree() {
-    return this.$tree.jstree(true);
+    return;
   }
 
   focus() {
-    this.$jstree.get_container().focus();
   }
 
   show(repo, token) {
-    const $jstree = this.$jstree;
-
-    $jstree.settings.core.data = (node, cb) => {
-      // This function does not accept an async function as its value
-      // Thus, we use an async anonymous function inside to fix it
-      (async () => {
-        const startTime = Date.now();
-        const loadAll = await this.adapter.shouldLoadEntireTree(repo);
-        node = !loadAll && (node.id === '#' ? {path: ''} : node.original);
-
-        this.adapter.loadCodeTree({repo, token, node}, (err, treeData) => {
-          if (err) {
-            if (err.status === 206 && loadAll) {
-              // The repo is too big to load all, need to retry
-              $jstree.refresh(true);
-            } else {
-              $(this).trigger(EVENT.FETCH_ERROR, [err]);
-            }
-            return;
-          }
-
-          cb(treeData);
-          $(document).trigger(EVENT.REPO_LOADED, {repo, loadAll, duration: Date.now() - startTime});
-        });
-      })()
-    };
-
-    this.$tree.one('refresh.jstree', async () => {
-      await this.syncSelection(repo);
-      $(this).trigger(EVENT.VIEW_READY);
-    });
+    $(document).trigger(EVENT.REPO_LOADED, { repo });
+    if (this.treeData.length > 0){
+      this.chart = this._chart(this.treeData);
+    } else {
+      this._initialScreen()
+    }
+    $(this).trigger(EVENT.VIEW_READY);
 
     this._showHeader(repo);
-    $jstree.refresh(true);
   }
 
   _showHeader(repo) {
@@ -78,14 +83,30 @@ class TreeView {
             <i class="octotree-icon-branch"></i>
             ${deXss((repo.displayBranch || repo.branch).toString())}
           </div>
+          <div class="octotree-header-selection">
+            <label class="selection-text">Selected Code Element</label>
+            <input id="codeElementField" type="text" class="form-control input-block selection-field" readonly/>
+          </div>
+          <div>
+            <button id="codeElementSubmit" class="btn btn-primary octotree-submit-button">Track</button>
+          </div>
         </div>`
       )
-      .on('click', 'a[data-pjax]', function(event) {
+      .on('click', 'a[data-pjax]', function (event) {
         event.preventDefault();
         // A.href always return absolute URL, don't want that
         const href = $(this).attr('href');
         const newTab = event.shiftKey || event.ctrlKey || event.metaKey;
         newTab ? adapter.openInNewTab(href) : adapter.selectFile(href);
+      });
+
+      document.addEventListener('click', function (event) {
+        let selection = document.getSelection();
+        let selectionText = selection.toString().trim();
+        console.log(selectionText);
+        if (selectionText !== ""){
+          document.getElementById("codeElementField").value = selectionText;
+        }
       });
   }
 
@@ -181,5 +202,76 @@ class TreeView {
         });
       }
     }
+  }
+
+  _chart(treeData) {
+  var margin = {top: 40, right: 5, bottom: 50, left: 5},
+      width = 210 - margin.left - margin.right,
+      height = 500 - margin.top - margin.bottom;
+  
+  // declares a tree layout and assigns the size
+  var treemap = d3.tree()
+      .size([width, height]);
+  
+  //  assigns the data to a hierarchy using parent-child relationships
+  var nodes = d3.hierarchy(treeData);
+  
+  // maps the node data to the tree layout
+  nodes = treemap(nodes);
+  
+  // append the svg obgect to the body of the page
+  // appends a 'group' element to 'svg'
+  // moves the 'group' element to the top left margin
+  
+  // var svg = d3.select("body > nav > div.octotree-views > div.octotree-view.octotree-tree-view.current > div.octotree-view-body").append("svg") 
+
+  var svg = d3.select("body > nav > div.octotree-views > div.octotree-view.octotree-tree-view.current > div.octotree-view-body").append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom),
+      g = svg.append("g")
+        .attr("transform",
+              "translate(" + margin.left + "," + margin.top + ")");
+  
+  // adds the links between the nodes
+  var link = g.selectAll(".link")
+      .data( nodes.descendants().slice(1))
+    .enter().append("path")
+      .attr("class", "link")
+      .attr("d", function(d) {
+         return "M" + d.x + "," + d.y
+           + "C" + d.x + "," + (d.y + d.parent.y) / 2
+           + " " + d.parent.x + "," +  (d.y + d.parent.y) / 2
+           + " " + d.parent.x + "," + d.parent.y;
+         });
+  
+  // adds each node as a group
+  var node = g.selectAll(".node")
+      .data(nodes.descendants())
+    .enter().append("g")
+      .attr("class", function(d) { 
+        return "node" + 
+          (d.children ? " node--internal" : " node--leaf"); })
+      .attr("transform", function(d) { 
+        return "translate(" + d.x + "," + d.y + ")"; });
+  
+  // adds the circle to the node
+  node.append("circle")
+    .attr("r", 10);
+  
+  // adds the text to the node
+  node.append("text")
+    .attr("dy", ".35em")
+    .attr("y", function(d) { return d.children ? -20 : 20; })
+    .style("text-anchor", "middle")
+    .text(function(d) { return d.data.name; });
+  }
+
+  _initialScreen(){
+    const instructions = `
+    <div class="octotree-instructions">
+      <p>Select a code element to track its refactoring history.</p>
+    </div>
+    `
+    $("body > nav > div.octotree-views > div.octotree-view.octotree-tree-view.current > div.octotree-view-body").append(instructions);
   }
 }

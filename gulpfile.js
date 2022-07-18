@@ -61,6 +61,7 @@ gulp.task('wex:js:ext', ['wex:template', 'lib:ondemand'], () => buildJs());
 gulp.task('wex:js', ['wex:js:ext'], () => {
   const src = [
     './libs/file-icons.js',
+    './libs/d3.min.js',
     './libs/jquery.js',
     './libs/jquery-ui.js',
     './libs/jstree.js',
