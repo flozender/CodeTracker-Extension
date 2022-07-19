@@ -2,6 +2,7 @@ const NODE_PREFIX = 'octotree';
 const ADDON_CLASS = 'octotree';
 const SHOW_CLASS = 'octotree-show';
 const PINNED_CLASS = 'octotree-pinned';
+const API_URL = "http://localhost:5000/api";
 
 const STORE = {
   TOKEN: 'octotree.token.local',
@@ -14,7 +15,10 @@ const STORE = {
   WIDTH: 'octotree.sidebar_width',
   SHOWN: 'octotree.sidebar_shown',
   PINNED: 'octotree.sidebar_pinned',
-  HUGE_REPOS: 'octotree.huge_repos'
+  HUGE_REPOS: 'octotree.huge_repos',
+  SELECTION: 'octotree.selection',
+  FILEPATH: 'octotree.filepath',
+  LINE_NUMBER: 'octotree.line_number'
 };
 
 const DEFAULTS = {
@@ -28,7 +32,10 @@ const DEFAULTS = {
   WIDTH: 232,
   SHOWN: false,
   PINNED: false,
-  HUGE_REPOS: {}
+  HUGE_REPOS: {},
+  SELECTION: {},
+  FILEPATH: '',
+  LINE_NUMBER: 0
 };
 
 const EVENT = {

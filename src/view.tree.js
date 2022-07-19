@@ -1,51 +1,9 @@
 class TreeView {
   constructor($dom, adapter) {
-    this.treeData = 
-      {
-        "name": "40b3384",
-        "parent": "null",
-        "children": [
-          {
-            "name": "0b78aed",
-            "parent": "40b3384",
-            "children": [
-              {
-                "name": "763773c",
-                "parent": "0b78aed",
-                "children": [
-                  {
-                    "name": "e42a651",
-                    "parent": "763773c",
-                    "children": [
-                      {
-                        "name": "be134de",
-                        "parent": "e42a651",
-                        "children": [
-                          {
-                            "name": "375941f",
-                            "parent": "be134de",
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      };
-    this.treeData = [];
+    this.treeData = {};
     this.adapter = adapter;
     this.$view = $dom.find('.octotree-tree-view');
-
-    // this.$tree = this.$view
-    //   .find('.octotree-view-body')
-    //   .html(`<svg>${this.chart}</svg>`)
-
-    // this.$tree.html($(".octotree-view-body").html());
-    // console.log(this.$tree);
-
+    this.$document = $(document);
   }
 
   get $jstree() {
@@ -63,7 +21,6 @@ class TreeView {
       this._initialScreen()
     }
     $(this).trigger(EVENT.VIEW_READY);
-
     this._showHeader(repo);
   }
 
@@ -92,22 +49,92 @@ class TreeView {
           </div>
         </div>`
       )
-      .on('click', 'a[data-pjax]', function (event) {
+      .on('click', 'a[data-pjax]', (event) => {
         event.preventDefault();
         // A.href always return absolute URL, don't want that
         const href = $(this).attr('href');
         const newTab = event.shiftKey || event.ctrlKey || event.metaKey;
         newTab ? adapter.openInNewTab(href) : adapter.selectFile(href);
+      })
+      .on('click', '#codeElementSubmit', async (event)=>{
+        event.preventDefault();
+        this._removeInstructions();
+        this.$document.trigger(EVENT.REQ_START);
+        
+        // Don't call API if no selection was made in this session
+        const selectionFieldValue = document.getElementById("codeElementField").value;
+        if (!selectionFieldValue){
+          return;
+        }
+
+        const {reponame, username, branch} = repo;
+        let selectionText = await this.getSelection();
+        let filePath = await this.getFilePath();
+        let lineNumber = await this.getLineNumber();
+
+        const params = `owner=${username}&repoName=${reponame}&filePath=${filePath}&commitId=${branch}&methodName=${selectionText}&lineNumber=${lineNumber}`;
+        const getRequest = `${API_URL}/method?${params}`;
+        console.log(getRequest);
+        fetch(getRequest)
+        .then(response => response.json())
+        .then(data => {
+          console.log(data); 
+          this.treeData = transformDataForTree(data);
+          this._chart(this.treeData);
+          this.$document.trigger(EVENT.REQ_END);
+        });
+
+        const transformDataForTree = (data) => {
+          let root = {children: []};
+          let treeData = root["children"];
+          let parent = "null";
+          for(let commit of data){
+            let commitId = commit.commitId.substring(0, 7);
+            let child = {}
+            child["name"] = commitId;
+            // child["changes"] = commit.changes;
+            // child["date"] = commit.date;
+            child["parent"] = parent;
+            child["children"] = [];
+            treeData.push(child);
+            treeData = child['children'];
+            parent = commitId;
+          }
+          return root.children[0];
+        };
       });
 
-      document.addEventListener('click', function (event) {
+      document.addEventListener('click', (event) => {
+        captureSelection();
+      });
+
+      const captureSelection = async () => {
         let selection = document.getSelection();
         let selectionText = selection.toString().trim();
-        console.log(selectionText);
         if (selectionText !== ""){
+          await window.extStore.set(window.STORE.SELECTION, selectionText);
           document.getElementById("codeElementField").value = selectionText;
+
+          let filePathButton = selection.anchorNode?.parentElement?.parentElement?.previousElementSibling;
+          let filePath = filePathButton?.getAttribute("data-path");
+          await window.extStore.set(window.STORE.FILEPATH, filePath);
+
+          let lineNumber = filePathButton.parentElement.previousElementSibling.getAttribute("data-line-number");
+          await window.extStore.set(window.STORE.LINE_NUMBER, lineNumber);
         }
-      });
+      }
+  }
+
+  async getSelection(){
+    return await window.extStore.get(window.STORE.SELECTION);
+  }
+
+  async getFilePath(){
+    return await window.extStore.get(window.STORE.FILEPATH);
+  }
+
+  async getLineNumber(){
+    return await window.extStore.get(window.STORE.LINE_NUMBER);
   }
 
   /**
@@ -207,7 +234,7 @@ class TreeView {
   _chart(treeData) {
   var margin = {top: 40, right: 5, bottom: 50, left: 5},
       width = 210 - margin.left - margin.right,
-      height = 500 - margin.top - margin.bottom;
+      height = 620 - margin.top - margin.bottom;
   
   // declares a tree layout and assigns the size
   var treemap = d3.tree()
@@ -273,5 +300,9 @@ class TreeView {
     </div>
     `
     $("body > nav > div.octotree-views > div.octotree-view.octotree-tree-view.current > div.octotree-view-body").append(instructions);
+  }
+
+  _removeInstructions(){
+    document.querySelector("body > nav > div.octotree-views > div.octotree-view.octotree-tree-view.current > div.octotree-view-body").innerHTML = null;
   }
 }
