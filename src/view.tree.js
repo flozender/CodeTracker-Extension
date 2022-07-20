@@ -138,7 +138,7 @@ class TreeView {
     }
     return arrows;
   }
-  
+
   // scrolling main function
   scrollToCodeElement(filePath, methodName) {
     let counter = 0;
@@ -203,7 +203,7 @@ class TreeView {
     }
     console.log("TREEDATA iS nOW", this.treeData);
     if (this.treeData.commitId) {
-      this.chart = this._chart(this.treeData);
+      this.chart = this._chart(this.treeData, repo);
     } else {
       this._initialScreen()
     }
@@ -261,7 +261,7 @@ class TreeView {
           .then(async (data) => {
             console.log(data);
             this.treeData = transformDataForTree(data, username, reponame);
-            this._chart(this.treeData);
+            this._chart(this.treeData, repo);
             this.$document.trigger(EVENT.REQ_END);
           });
 
@@ -423,7 +423,7 @@ class TreeView {
     }
   }
 
-  _chart(treeData) {
+  _chart(treeData, repo) {
     var margin = { top: 40, right: 5, bottom: 50, left: 5 },
       width = 210 - margin.left - margin.right,
       height = 620 - margin.top - margin.bottom;
@@ -487,7 +487,7 @@ class TreeView {
       .enter().append("g")
       .attr("class", function (d) {
         return "node" +
-          (d.children ? " node--internal" : " node--leaf");
+          (d.children ? " node--internal" : " node--leaf") + (repo.branch === d.data.commitId ? " node--active" : "");
       })
       .attr("transform", function (d) {
         return "translate(" + d.x + "," + d.y + ")";
