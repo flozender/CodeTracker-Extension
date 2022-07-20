@@ -22,15 +22,15 @@ class TreeView {
   }
 
   updateCodeElementSelectionField(selectionText) {
-      document.getElementById("codeElementField").value = selectionText;
-      this._removeTreeBody();
+    document.getElementById("codeElementField").value = selectionText;
+    this._removeTreeBody();
   }
 
   async restoreTreeData() {
     try {
       this.treeData = await window.extStore.get(window.STORE.TREE_DATA);
       this.selectionText = await window.extStore.get(window.STORE.SELECTION_TEXT);
-      if (this.selectionText){
+      if (this.selectionText) {
         this.updateCodeElementSelectionField(this.selectionText);
       }
       // capture methodname and filepath here
@@ -45,11 +45,9 @@ class TreeView {
   // scrolling helper functions
   getLineNumberFromDOM = (document, methodName) => {
     var textNode = $(document).find(`span:contains('${methodName}')`);
-    console.log(textNode);
     const index = textNode.length - 2;
     return textNode[index].parentElement.previousElementSibling.getAttribute("data-line-number");
   };
-
 
   lineOf = (text, substring) => {
     var line = 0, matchedChars = 0;
@@ -75,27 +73,124 @@ class TreeView {
     let response = await fetch(url).then(response => response.json());
     let content = atob(response.content);
     let lineNumber = lineOf(content, methodName);
-    console.log("LN IS", lineNumber);
     return lineNumber;
   };
 
+  // linenumber of the user selection
+  getLineNumberFromDOM_GET = (node) => {
+    let lineNumber;
+    try {
+      lineNumber = node.parentElement.parentElement.previousElementSibling.getAttribute("data-line-number");
+    } catch (err) { }
+
+    if (!lineNumber) {
+      try {
+        lineNumber = node.parentElement.previousElementSibling.getAttribute("data-line-number");
+      } catch (err) { }
+    }
+
+    return lineNumber;
+  }
+
+  // filepath div of the user selection
+  getFileDivFromDOM = (node) => {
+    if (!node) {
+      return null;
+    }
+
+    while (node?.getAttribute("data-tagsearch-path") == null) {
+      node = node.parentElement;
+    }
+    return node;
+  }
+
+  // filepath of the user selection
+  getFilePathFromDOM_GET = (node) => {
+    node = this.getFileDivFromDOM(node);
+    return node.getAttribute("data-tagsearch-path");
+  }
+
+  // get filediv when span is not available
+  getFileDivFromFilePath = (filepath) => {
+    var textNodes = $(document).find(`div`)
+      .contents().filter(
+        function () {
+          return this.nodeType == 1
+            && this.getAttribute("data-tagsearch-path") == filepath;
+        });
+    return textNodes[0];
+  }
+
   getMethodSpan = (document, methodName) => {
     var textNodes = $(document).find(`span:contains('${methodName}')`)
-      .contents().filter(
+      .filter(
         function () {
           return this.nodeType == 1
             && this.textContent == methodName;
         });
-    return textNodes[textNodes.length-1];
+    return textNodes[textNodes.length - 1];
   };
 
+  expandArrows = (node) => {
+    let arrows = $(node).find("a.js-expand");
+    for (let arrow of arrows) {
+      arrow.click()
+    }
+    return arrows;
+  }
+  
   // scrolling main function
-  scrollToCodeElement(filePath, methodName){
-    const span = this.getMethodSpan(this.$document, methodName);
-    console.log("PSAN", span);
-    const lineNumber = span.parentElement.parentElement.previousElementSibling.getAttribute("data-line-number") + 1;
-    const diffHash = span.parentElement.parentElement.previousElementSibling.getAttribute("id");
-    window.location = window.location + "#" + diffHash
+  scrollToCodeElement(filePath, methodName) {
+    let counter = 0;
+
+    const scrollAgainAndTry = () => {
+      setTimeout(
+        () => {
+          window.scrollTo(0, document.body.scrollHeight);
+          if (!span) {
+            span = this.getMethodSpan(this.$document, methodName);
+          }
+          if (!fileDiv) {
+            fileDiv = this.getFileDivFromDOM(span);
+            if (!fileDiv) {
+              fileDiv = this.getFileDivFromFilePath(filePath);
+            }
+          }
+          this.expandArrows(fileDiv);
+
+          // if span or filediv were not found, scroll more
+          if ((!span || !fileDiv) && counter < 5) {
+            counter += 1;
+            scrollAgainAndTry();
+          } else {
+            highlightLine(span, fileDiv);
+          }
+        }, 1000
+      );
+    }
+
+    const highlightLine = (span, fileDiv) => {
+      if (span && fileDiv.getAttribute("data-tagsearch-path") == filePath) {
+        let diffHash = span.parentElement.parentElement.previousElementSibling.getAttribute("id");
+        if (!diffHash) {
+          diffHash = span.parentElement.previousElementSibling.getAttribute("id");
+        }
+        window.location = window.location + "#" + diffHash;
+      }
+    }
+
+    let span = this.getMethodSpan(this.$document, methodName);
+    let fileDiv = this.getFileDivFromDOM(span);
+
+    if (!fileDiv) {
+      fileDiv = this.getFileDivFromFilePath(filePath);
+    }
+
+    if (!span || !fileDiv) {
+      scrollAgainAndTry();
+    }
+
+    highlightLine(span, fileDiv);
     return;
   }
 
@@ -103,7 +198,7 @@ class TreeView {
     $(document).trigger(EVENT.REPO_LOADED, { repo });
     this._showHeader(repo);
     await this.restoreTreeData();
-    if (!window.location.toString().includes("#")){
+    if (!window.location.toString().includes("#") && this.sessionMethodName) {
       this.scrollToCodeElement(this.sessionFilePath, this.sessionMethodName);
     }
     console.log("TREEDATA iS nOW", this.treeData);
@@ -199,7 +294,7 @@ class TreeView {
           return root.children[0];
         };
       })
-      .on('click', '#codeElementReset', async (event)=>{
+      .on('click', '#codeElementReset', async (event) => {
         event.preventDefault();
         this.updateCodeElementSelectionField(null);
         this._initialScreen();
@@ -208,6 +303,10 @@ class TreeView {
         await window.extStore.set(window.STORE.FILE_PATH, null);
         await window.extStore.set(window.STORE.METHOD_NAME, null);
         this.$document.trigger(EVENT.REQ_END);
+        const currentUrl = window.location.toString();
+        if (currentUrl.includes("#")) {
+          window.location = currentUrl.split("#")[0];
+        }
       })
 
     document.addEventListener('click', () => {
@@ -221,37 +320,12 @@ class TreeView {
         this.selectionText = selectionText;
         this.updateCodeElementSelectionField(selectionText);
 
-        let filePath = getFilePathFromDOM_GET(selection.anchorNode.parentElement);
+        let filePath = this.getFilePathFromDOM_GET(selection.anchorNode.parentElement);
         this.filePath = filePath;
 
-        let lineNumber = getLineNumberFromDOM_GET(selection.anchorNode.parentElement);
+        let lineNumber = this.getLineNumberFromDOM_GET(selection.anchorNode.parentElement);
         this.lineNumber = lineNumber;
       }
-    }
-
-    // filepath of the user selection
-    const getFilePathFromDOM_GET = (node) => {
-      console.log(node);
-      while (node.getAttribute("data-tagsearch-path") == null) {
-        node = node.parentElement;
-      }
-      return node.getAttribute("data-tagsearch-path");
-    }
-
-    // linenumber of the user selection
-    const getLineNumberFromDOM_GET = (node) => {
-      let lineNumber;
-      try {
-        lineNumber = node.parentElement.parentElement.previousElementSibling.getAttribute("data-line-number");
-      } catch (err) { }
-
-      if (!lineNumber) {
-        try {
-          lineNumber = node.parentElement.previousElementSibling.getAttribute("data-line-number");
-        } catch (err) { }
-      }
-      
-      return lineNumber;
     }
   }
 
@@ -393,7 +467,6 @@ class TreeView {
 
     const redirectToCommitPage = async (event) => {
       const data = event.srcElement.__data__.data;
-      console.log("Data IS", data);
       const { username, reponame, commitId, filePath, methodName } = data;
       let url = `https://github.com/${username}/${reponame}/commit/${commitId}`;
       console.log(url);
@@ -403,15 +476,6 @@ class TreeView {
       await window.extStore.set(window.STORE.SELECTION_TEXT, this.selectionText);
       await window.extStore.set(window.STORE.FILE_PATH, filePath);
       await window.extStore.set(window.STORE.METHOD_NAME, methodName);
-
-      // const pageString = await fetch(url).then(response => response.text());
-      // const $doc = $.parseHTML(pageString);
-      // const filenameDiv = getCodeFileDiv($doc, filePath);
-      // console.log(filenameDiv);
-      // const diffHash = filenameDiv.getAttribute("id");
-      // const lineNumber = await getLineNumberFromDOM(filenameDiv, methodName);
-      // url = url + "#" + diffHash + "R" + lineNumber;
-      // console.log(url);
 
       window.location = url;
       return url;
