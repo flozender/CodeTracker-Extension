@@ -16,9 +16,10 @@ const STORE = {
   SHOWN: 'octotree.sidebar_shown',
   PINNED: 'octotree.sidebar_pinned',
   HUGE_REPOS: 'octotree.huge_repos',
-  SELECTION: 'octotree.selection',
-  FILEPATH: 'octotree.filepath',
-  LINE_NUMBER: 'octotree.line_number'
+  SELECTION_TEXT: 'octotree.selection_text',
+  FILE_PATH: 'octotree.filepath',
+  TREE_DATA: 'octotree.tree_data',
+  METHOD_NAME: 'octotree.method_name'
 };
 
 const DEFAULTS = {
@@ -33,9 +34,10 @@ const DEFAULTS = {
   SHOWN: false,
   PINNED: false,
   HUGE_REPOS: {},
-  SELECTION: {},
-  FILEPATH: '',
-  LINE_NUMBER: 0
+  SELECTION_TEXT: "",
+  FILE_PATH: '',
+  TREE_DATA: {},
+  METHOD_NAME: ""
 };
 
 const EVENT = {

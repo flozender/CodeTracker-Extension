@@ -154,7 +154,7 @@ $(document).ready(() => {
               hasError = false;
               $document.trigger(EVENT.REQ_START);
               currRepo = repo;
-              treeView.show(repo, token);
+              await treeView.show(repo, token);
             } else {
               await treeView.syncSelection(repo);
             }

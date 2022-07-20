@@ -59,6 +59,7 @@ class ExtStore {
 
   // Public
   async set(key, value) {
+    console.log("SETTING", key, value)
     if (this._init) await this._init;
     return this._innerSet(key, value);
   }

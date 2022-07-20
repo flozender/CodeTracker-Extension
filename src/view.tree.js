@@ -2,8 +2,16 @@ class TreeView {
   constructor($dom, adapter) {
     this.treeData = {};
     this.adapter = adapter;
+    this.selectionText;
+    this.lineNumber;
+    this.filePath;
+
     this.$view = $dom.find('.octotree-tree-view');
     this.$document = $(document);
+
+    // restore session
+    this.sessionFilePath;
+    this.sessionMethodName;
   }
 
   get $jstree() {
@@ -13,15 +21,98 @@ class TreeView {
   focus() {
   }
 
-  show(repo, token) {
+  updateCodeElementSelectionField(selectionText) {
+      document.getElementById("codeElementField").value = selectionText;
+      this._removeTreeBody();
+  }
+
+  async restoreTreeData() {
+    try {
+      this.treeData = await window.extStore.get(window.STORE.TREE_DATA);
+      this.selectionText = await window.extStore.get(window.STORE.SELECTION_TEXT);
+      if (this.selectionText){
+        this.updateCodeElementSelectionField(this.selectionText);
+      }
+      // capture methodname and filepath here
+      this.sessionFilePath = await window.extStore.get(window.STORE.FILE_PATH);
+      this.sessionMethodName = await window.extStore.get(window.STORE.METHOD_NAME);
+    }
+    catch (err) {
+      console.log("No session", err);
+    }
+  }
+
+  // scrolling helper functions
+  getLineNumberFromDOM = (document, methodName) => {
+    var textNode = $(document).find(`span:contains('${methodName}')`);
+    console.log(textNode);
+    const index = textNode.length - 2;
+    return textNode[index].parentElement.previousElementSibling.getAttribute("data-line-number");
+  };
+
+
+  lineOf = (text, substring) => {
+    var line = 0, matchedChars = 0;
+
+    for (var i = 0; i < text.length; i++) {
+      text[i] === substring[matchedChars] ? matchedChars++ : matchedChars = 0;
+
+      if (matchedChars === substring.length) {
+        return line + 1;
+      }
+      if (text[i] === '\n') {
+        line++;
+      }
+    }
+
+    return -1;
+  }
+
+  getLineNumberFromAPI = async (data) => {
+    const { username, reponame, filePath, commitId, methodName } = data;
+    let url = `https://api.github.com/repos/${username}/${reponame}/contents/${filePath}?ref=${commitId}`;
+    console.log("GETTING ", url);
+    let response = await fetch(url).then(response => response.json());
+    let content = atob(response.content);
+    let lineNumber = lineOf(content, methodName);
+    console.log("LN IS", lineNumber);
+    return lineNumber;
+  };
+
+  getMethodSpan = (document, methodName) => {
+    var textNodes = $(document).find(`span:contains('${methodName}')`)
+      .contents().filter(
+        function () {
+          return this.nodeType == 1
+            && this.textContent == methodName;
+        });
+    return textNodes[textNodes.length-1];
+  };
+
+  // scrolling main function
+  scrollToCodeElement(filePath, methodName){
+    const span = this.getMethodSpan(this.$document, methodName);
+    console.log("PSAN", span);
+    const lineNumber = span.parentElement.parentElement.previousElementSibling.getAttribute("data-line-number") + 1;
+    const diffHash = span.parentElement.parentElement.previousElementSibling.getAttribute("id");
+    window.location = window.location + "#" + diffHash
+    return;
+  }
+
+  async show(repo, token) {
     $(document).trigger(EVENT.REPO_LOADED, { repo });
-    if (this.treeData.length > 0) {
+    this._showHeader(repo);
+    await this.restoreTreeData();
+    if (!window.location.toString().includes("#")){
+      this.scrollToCodeElement(this.sessionFilePath, this.sessionMethodName);
+    }
+    console.log("TREEDATA iS nOW", this.treeData);
+    if (this.treeData.commitId) {
       this.chart = this._chart(this.treeData);
     } else {
       this._initialScreen()
     }
     $(this).trigger(EVENT.VIEW_READY);
-    this._showHeader(repo);
   }
 
   _showHeader(repo) {
@@ -46,6 +137,7 @@ class TreeView {
           </div>
           <div>
             <button id="codeElementSubmit" class="btn btn-primary octotree-submit-button">Track</button>
+            <button id="codeElementReset" class="btn btn-secondary octotree-submit-button">Reset</button>
           </div>
         </div>`
       )
@@ -58,26 +150,20 @@ class TreeView {
       })
       .on('click', '#codeElementSubmit', async (event) => {
         event.preventDefault();
-        this._removeInstructions();
+        this._removeTreeBody();
         this.$document.trigger(EVENT.REQ_START);
 
-        // Don't call API if no selection was made in this session
-        const selectionFieldValue = document.getElementById("codeElementField").value;
-        if (!selectionFieldValue) {
-          return;
-        }
-
         const { username, reponame, branch } = repo;
-        let selectionText = await this.getSelection();
-        let filePath = await this.getFilePath();
-        let lineNumber = await this.getLineNumber();
+        let selectionText = this.selectionText;
+        let filePath = this.filePath;
+        let lineNumber = this.lineNumber;
 
         const params = `owner=${username}&repoName=${reponame}&filePath=${filePath}&commitId=${branch}&methodName=${selectionText}&lineNumber=${lineNumber}`;
         const getRequest = `${API_URL}/method?${params}`;
         console.log(getRequest);
         fetch(getRequest)
           .then(response => response.json())
-          .then(data => {
+          .then(async (data) => {
             console.log(data);
             this.treeData = transformDataForTree(data, username, reponame);
             this._chart(this.treeData);
@@ -91,19 +177,20 @@ class TreeView {
           for (let commit of data) {
             let filePath = commit.after.split("#")[0].replaceAll(".", "/") + '.java';
             let methodName = commit.after.split("#")[1].slice(0, -2)
-            let commitId = commit.commitId.substring(0, 7);
-
-            let child = {}
-            child["name"] = commitId;
-            child["changes"] = commit.changes;
-            child["date"] = commit.date;
-            child["parent"] = parent;
-            child["commitId"] = commit.commitId;
-            child["filePath"] = filePath;
-            child["methodName"] = methodName;
-            child["username"] = username;
-            child["reponame"] = reponame;
-            child["children"] = [];
+            let commitIdHash = commit.commitId.substring(0, 7);
+            let { changes, date, commitId } = commit;
+            let child = {
+              name: commitIdHash,
+              changes,
+              date,
+              commitId,
+              parent,
+              filePath,
+              methodName,
+              username,
+              reponame,
+              children: []
+            }
             treeData.push(child);
             treeData = child['children'];
             parent = commitId;
@@ -111,39 +198,61 @@ class TreeView {
           console.log(root.children[0]);
           return root.children[0];
         };
-      });
+      })
+      .on('click', '#codeElementReset', async (event)=>{
+        event.preventDefault();
+        this.updateCodeElementSelectionField(null);
+        this._initialScreen();
+        await window.extStore.set(window.STORE.TREE_DATA, {});
+        await window.extStore.set(window.STORE.SELECTION_TEXT, null);
+        await window.extStore.set(window.STORE.FILE_PATH, null);
+        await window.extStore.set(window.STORE.METHOD_NAME, null);
+        this.$document.trigger(EVENT.REQ_END);
+      })
 
-    document.addEventListener('click', (event) => {
+    document.addEventListener('click', () => {
       captureSelection();
     });
 
-    const captureSelection = async () => {
+    const captureSelection = () => {
       let selection = document.getSelection();
       let selectionText = selection.toString().trim();
       if (selectionText !== "") {
-        await window.extStore.set(window.STORE.SELECTION, selectionText);
-        document.getElementById("codeElementField").value = selectionText;
+        this.selectionText = selectionText;
+        this.updateCodeElementSelectionField(selectionText);
 
-        let filePathButton = selection.anchorNode?.parentElement?.parentElement?.previousElementSibling;
-        let filePath = filePathButton?.getAttribute("data-path");
-        await window.extStore.set(window.STORE.FILEPATH, filePath);
+        let filePath = getFilePathFromDOM_GET(selection.anchorNode.parentElement);
+        this.filePath = filePath;
 
-        let lineNumber = filePathButton.parentElement.previousElementSibling.getAttribute("data-line-number");
-        await window.extStore.set(window.STORE.LINE_NUMBER, lineNumber);
+        let lineNumber = getLineNumberFromDOM_GET(selection.anchorNode.parentElement);
+        this.lineNumber = lineNumber;
       }
     }
-  }
 
-  async getSelection() {
-    return await window.extStore.get(window.STORE.SELECTION);
-  }
+    // filepath of the user selection
+    const getFilePathFromDOM_GET = (node) => {
+      console.log(node);
+      while (node.getAttribute("data-tagsearch-path") == null) {
+        node = node.parentElement;
+      }
+      return node.getAttribute("data-tagsearch-path");
+    }
 
-  async getFilePath() {
-    return await window.extStore.get(window.STORE.FILEPATH);
-  }
+    // linenumber of the user selection
+    const getLineNumberFromDOM_GET = (node) => {
+      let lineNumber;
+      try {
+        lineNumber = node.parentElement.parentElement.previousElementSibling.getAttribute("data-line-number");
+      } catch (err) { }
 
-  async getLineNumber() {
-    return await window.extStore.get(window.STORE.LINE_NUMBER);
+      if (!lineNumber) {
+        try {
+          lineNumber = node.parentElement.previousElementSibling.getAttribute("data-line-number");
+        } catch (err) { }
+      }
+      
+      return lineNumber;
+    }
   }
 
   /**
@@ -279,71 +388,35 @@ class TreeView {
           + " " + d.parent.x + "," + (d.y + d.parent.y) / 2
           + " " + d.parent.x + "," + d.parent.y;
       });
-    
-    const getCodeFileDiv = (document, filePath) => {
-        var textNodes = $(document).find(":not(iframe, script)")
-          .contents().filter( 
-              function() {
-               return this.nodeType == 1 
-                 && this.getAttribute("data-tagsearch-path") == filePath;
-        });
-        return textNodes[0];
-    };
 
-    const getLineNumberFromDOM = (document, methodName) => {
-      var textNode = $(document).find(`span:contains('${methodName}')`);
-      console.log(textNode);
-      const index = textNode.length - 2;
-      return textNode[index].parentElement.previousElementSibling.getAttribute("data-line-number");
-    };
 
-    
-    const lineOf = (text, substring) => {
-      var line = 0, matchedChars = 0;
-
-      for (var i = 0; i < text.length; i++) {
-        text[i] === substring[matchedChars] ? matchedChars++ : matchedChars = 0;
-
-        if (matchedChars === substring.length){
-            return line + 1;                  
-        }
-        if (text[i] === '\n'){
-            line++;
-        }
-      }
-
-      return -1;
-    }
-
-    const getLineNumberFromAPI = async (data) => {
-      const {username, reponame, filePath, commitId, methodName} = data;
-      let url = `https://api.github.com/repos/${username}/${reponame}/contents/${filePath}?ref=${commitId}`;
-      console.log("GETTING ", url);
-      let response = await fetch(url).then(response => response.json());
-      let content = atob(response.content);
-      let lineNumber = lineOf(content, methodName);
-      console.log("LN IS", lineNumber);
-      return lineNumber;
-    };
 
     const redirectToCommitPage = async (event) => {
       const data = event.srcElement.__data__.data;
-      console.log("D IS" , data);
-      const { username, reponame, commitId, filePath } = data;
+      console.log("Data IS", data);
+      const { username, reponame, commitId, filePath, methodName } = data;
       let url = `https://github.com/${username}/${reponame}/commit/${commitId}`;
       console.log(url);
-      const pageString = await fetch(url).then(response => response.text());
-      const $doc = $.parseHTML(pageString);
-      const filenameDiv = getCodeFileDiv($doc, filePath);
-      const diffHash = filenameDiv.getAttribute("id");
 
-      const lineNumber = await getLineNumberFromAPI(data);
+      // store all info to storage for next page
+      await window.extStore.set(window.STORE.TREE_DATA, this.treeData);
+      await window.extStore.set(window.STORE.SELECTION_TEXT, this.selectionText);
+      await window.extStore.set(window.STORE.FILE_PATH, filePath);
+      await window.extStore.set(window.STORE.METHOD_NAME, methodName);
 
-      url = url + "#" + diffHash + "R" + lineNumber;
-      console.log(url);
+      // const pageString = await fetch(url).then(response => response.text());
+      // const $doc = $.parseHTML(pageString);
+      // const filenameDiv = getCodeFileDiv($doc, filePath);
+      // console.log(filenameDiv);
+      // const diffHash = filenameDiv.getAttribute("id");
+      // const lineNumber = await getLineNumberFromDOM(filenameDiv, methodName);
+      // url = url + "#" + diffHash + "R" + lineNumber;
+      // console.log(url);
+
+      window.location = url;
       return url;
     }
-  
+
     // adds each node as a group
     var node = g.selectAll(".node")
       .data(nodes.descendants())
@@ -356,7 +429,6 @@ class TreeView {
         return "translate(" + d.x + "," + d.y + ")";
       })
       .attr("data-commitId", function (d) {
-        console.log("CommitID: ", d);
         return d.data.commitId;
       })
       .attr("data-filePath", function (d) {
@@ -382,6 +454,7 @@ class TreeView {
   }
 
   _initialScreen() {
+    this._removeTreeBody();
     const instructions = `
     <div class="octotree-instructions">
       <p>Select a code element to track its refactoring history.</p>
@@ -390,7 +463,7 @@ class TreeView {
     $("body > nav > div.octotree-views > div.octotree-view.octotree-tree-view.current > div.octotree-view-body").append(instructions);
   }
 
-  _removeInstructions() {
+  _removeTreeBody() {
     document.querySelector("body > nav > div.octotree-views > div.octotree-view.octotree-tree-view.current > div.octotree-view-body").innerHTML = null;
   }
 }
