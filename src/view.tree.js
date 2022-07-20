@@ -304,9 +304,7 @@ class TreeView {
         await window.extStore.set(window.STORE.METHOD_NAME, null);
         this.$document.trigger(EVENT.REQ_END);
         const currentUrl = window.location.toString();
-        if (currentUrl.includes("#")) {
-          window.location = currentUrl.split("#")[0];
-        }
+        window.location = currentUrl.split("#")[0];
       })
 
     document.addEventListener('click', () => {
