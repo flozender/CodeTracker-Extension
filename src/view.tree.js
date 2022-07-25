@@ -111,12 +111,12 @@ class TreeView {
   }
 
   // get filediv when span is not available
-  getFileDivFromFilePath = (filepath) => {
+  getFileDivFromFilePath = (filePath) => {
     var textNodes = $(document).find(`div`)
       .contents().filter(
         function () {
           return this.nodeType == 1
-            && this.getAttribute("data-tagsearch-path") == filepath;
+            && this.getAttribute("data-tagsearch-path") == filePath;
         });
     return textNodes[0];
   }
@@ -260,15 +260,19 @@ class TreeView {
           .then(response => response.json())
           .then(async (data) => {
             console.log(data);
-            this.treeData = transformDataForTree(data, username, reponame);
+            this.treeData = transformDataForTree(data, username, reponame, {
+              branch, methodName: selectionText, filePath
+            });
             this._chart(this.treeData, repo);
             this.$document.trigger(EVENT.REQ_END);
           });
 
-        const transformDataForTree = (data, username, reponame) => {
+        const transformDataForTree = (data, username, reponame, currentNode) => {
           let root = { children: [] };
           let treeData = root["children"];
-          let parent = "null";
+          let { branch } = currentNode;
+          let parent = branch.substring(0, 7);
+          data = data.reverse();
           for (let commit of data) {
             let filePath = commit.after.split("#")[0].replaceAll(".", "/") + '.java';
             let methodName = commit.after.split("#")[1].slice(0, -2)
@@ -290,8 +294,21 @@ class TreeView {
             treeData = child['children'];
             parent = commitId;
           }
-          console.log(root.children[0]);
-          return root.children[0];
+          
+          const currentCommitNode = {
+            name: branch.substring(0, 7),
+            changes: ["CodeTracker: Initialized on this commit"],
+            date: $(document).find(`relative-time`)[0].getAttribute("datetime"),
+            commitId: branch,
+            parent: "null",
+            filePath: currentNode.filePath,
+            methodName: currentNode.methodName,
+            username,
+            reponame,
+            children: [root.children[0]]
+          }
+          console.log(currentCommitNode);
+          return currentCommitNode;
         };
       })
       .on('click', '#codeElementReset', async (event) => {
