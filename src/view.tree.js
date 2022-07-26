@@ -44,15 +44,15 @@ class TreeView {
 
   // scrolling helper functions
   getLineNumberFromDOM = (document, methodName) => {
-    var textNode = $(document).find(`span:contains('${methodName}')`);
+    let textNode = $(document).find(`span:contains('${methodName}')`);
     const index = textNode.length - 2;
     return textNode[index].parentElement.previousElementSibling.getAttribute("data-line-number");
   };
 
   lineOf = (text, substring) => {
-    var line = 0, matchedChars = 0;
+    let line = 0, matchedChars = 0;
 
-    for (var i = 0; i < text.length; i++) {
+    for (let i = 0; i < text.length; i++) {
       text[i] === substring[matchedChars] ? matchedChars++ : matchedChars = 0;
 
       if (matchedChars === substring.length) {
@@ -112,7 +112,7 @@ class TreeView {
 
   // get filediv when span is not available
   getFileDivFromFilePath = (filePath) => {
-    var textNodes = $(document).find(`div`)
+    let textNodes = $(document).find(`div`)
       .contents().filter(
         function () {
           return this.nodeType == 1
@@ -122,7 +122,7 @@ class TreeView {
   }
 
   getMethodSpan = (document, methodName) => {
-    var textNodes = $(document).find(`span:contains('${methodName}')`)
+    let textNodes = $(document).find(`span:contains('${methodName}')`)
       .filter(
         function () {
           return this.nodeType == 1
@@ -271,18 +271,21 @@ class TreeView {
           let root = { children: [] };
           let treeData = root["children"];
           let { branch } = currentNode;
-          let parent = branch.substring(0, 7);
           data = data.reverse();
+          let parent = "null";
+          // check if current commit has a refactoring, if not add a dummy checkpoint node
+          // let parent = branch.substring(0, 7);
           for (let commit of data) {
             let filePath = commit.after.split("#")[0].replaceAll(".", "/") + '.java';
             let methodName = commit.after.split("#")[1].slice(0, -2)
             let commitIdHash = commit.commitId.substring(0, 7);
-            let { changes, date, commitId } = commit;
+            let { changes, date, commitId, committer } = commit;
             let child = {
               name: commitIdHash,
               changes,
               date,
               commitId,
+              committer,
               parent,
               filePath,
               methodName,
@@ -294,21 +297,25 @@ class TreeView {
             treeData = child['children'];
             parent = commitId;
           }
-          
-          const currentCommitNode = {
-            name: branch.substring(0, 7),
-            changes: ["CodeTracker: Initialized on this commit"],
-            date: $(document).find(`relative-time`)[0].getAttribute("datetime"),
-            commitId: branch,
-            parent: "null",
-            filePath: currentNode.filePath,
-            methodName: currentNode.methodName,
-            username,
-            reponame,
-            children: [root.children[0]]
-          }
-          console.log(currentCommitNode);
-          return currentCommitNode;
+
+          // const currentCommitNode = {
+          //   name: branch.substring(0, 7),
+          //   changes: ["CodeTracker: Initialized on this commit"],
+          //   date: $(document).find(`relative-time`)[0].getAttribute("datetime"),
+          //   commitId: branch,
+          //   committer: $(document).find('.commit-author')[0].innerHTML,
+          //   parent: "null",
+          //   filePath: currentNode.filePath,
+          //   methodName: currentNode.methodName,
+          //   username,
+          //   reponame,
+          //   children: [root.children[0]]
+          // }
+          // console.log(currentCommitNode);
+          // return currentCommitNode;
+
+          console.log(root.children[0]);
+          return root.children[0];
         };
       })
       .on('click', '#codeElementReset', async (event) => {
@@ -439,16 +446,17 @@ class TreeView {
   }
 
   _chart(treeData, repo) {
-    var margin = { top: 40, right: 5, bottom: 50, left: 5 },
+    const treeBody = "body > nav > div.octotree-views > div.octotree-view.octotree-tree-view.current > div.octotree-view-body";
+    let margin = { top: 40, right: 5, bottom: 50, left: 5 },
       width = 210 - margin.left - margin.right,
       height = 620 - margin.top - margin.bottom;
 
     // declares a tree layout and assigns the size
-    var treemap = d3.tree()
+    let treemap = d3.tree()
       .size([width, height]);
 
     //  assigns the data to a hierarchy using parent-child relationships
-    var nodes = d3.hierarchy(treeData);
+    let nodes = d3.hierarchy(treeData);
 
     // maps the node data to the tree layout
     nodes = treemap(nodes);
@@ -457,9 +465,9 @@ class TreeView {
     // appends a 'group' element to 'svg'
     // moves the 'group' element to the top left margin
 
-    // var svg = d3.select("body > nav > div.octotree-views > div.octotree-view.octotree-tree-view.current > div.octotree-view-body").append("svg") 
+    // let svg = d3.select("body > nav > div.octotree-views > div.octotree-view.octotree-tree-view.current > div.octotree-view-body").append("svg") 
 
-    var svg = d3.select("body > nav > div.octotree-views > div.octotree-view.octotree-tree-view.current > div.octotree-view-body").append("svg")
+    let svg = d3.select(treeBody).append("svg")
       .attr("width", width + margin.left + margin.right)
       .attr("height", height + margin.top + margin.bottom),
       g = svg.append("g")
@@ -467,7 +475,7 @@ class TreeView {
           "translate(" + margin.left + "," + margin.top + ")");
 
     // adds the links between the nodes
-    var link = g.selectAll(".link")
+    let link = g.selectAll(".link")
       .data(nodes.descendants().slice(1))
       .enter().append("path")
       .attr("class", "link")
@@ -496,13 +504,41 @@ class TreeView {
       return url;
     }
 
+    function timeSince(timeStamp) {
+
+      timeStamp = new Date(timeStamp)
+      const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+
+      var now = new Date(),
+          secondsPast = (now.getTime() - timeStamp.getTime() ) / 1000;
+      if(secondsPast < 60){
+          return secondsPast + 's';
+      }
+      if(secondsPast < 3600){
+          return rtf.format(-1 * parseInt(secondsPast/60), 'minute');
+      }
+      if(secondsPast <= 86400){
+          return rtf.format(-1 * parseInt(secondsPast/3600), 'hour');
+      }
+      if(secondsPast <= 2628000){
+          return rtf.format(-1 * parseInt(secondsPast/86400), 'day');
+      }
+      if(secondsPast <= 31536000){
+        return rtf.format(-1 * parseInt(secondsPast/2628000), 'month');
+      }
+      if(secondsPast > 31536000){
+        return rtf.format(-1 * parseInt(secondsPast/31536000), 'year');
+      }
+  }
+
+    let toolTip = d3.select(treeBody).append("div").attr("class", "treeToolTip");
+
     // adds each node as a group
-    var node = g.selectAll(".node")
+    let node = g.selectAll(".node")
       .data(nodes.descendants())
       .enter().append("g")
       .attr("class", function (d) {
-        return "node" +
-          (d.children ? " node--internal" : " node--leaf") + (repo.branch === d.data.commitId ? " node--active" : "");
+        return "node node--internal" + (repo.branch === d.data.commitId ? " node--active" : "");
       })
       .attr("transform", function (d) {
         return "translate(" + d.x + "," + d.y + ")";
@@ -516,18 +552,69 @@ class TreeView {
       .attr("data-changes", function (d) {
         return JSON.stringify(d.data.changes);
       })
-      .attr("cursor", "pointer")
-      .on("click", redirectToCommitPage);
 
 
     // adds the circle to the node
     node.append("circle")
-      .attr("r", 10);
+      .attr("r", 12)
+      .attr("cursor", "pointer")
+      .on('mouseover', nodeMouseOver)
+      .on('mouseout', nodeMouseOut)
+      .on("click", redirectToCommitPage);
+
+    function nodeMouseOver(event, d) {   
+      const toolTipContents = `
+      <div>
+      By <b>${d.data.committer}</b>, ${timeSince(d.data.date.split("T")[0])}
+      <br/>
+      <p style="font-style: italics; margin-bottom: 15px;">${d.data.changes}</p>
+      <b>${d.data.commitId}</b>
+      </div>`;
+      
+      let fillColor = '#d0f2e0';
+      if (repo.branch === d.data.commitId){
+        fillColor = "#56FCA2";
+      }
+
+      const element = event.target.getBoundingClientRect();
+      toolTip.style("left", element.left + 30 +"px")
+        .style("top", element.top - 5 + "px")
+        .style("display", "block")
+        .html(toolTipContents);
+
+      // Optional cursor change on target
+      d3.select(event.target).style("cursor", "pointer");
+
+      // Optional highlight effects on target
+      d3.select(event.target)
+        .transition()
+        .style('fill', fillColor)
+        .style('stroke-width', '4px');
+    }
+
+    function nodeMouseOut(event, d) {
+      let fillColor = '#fff';
+      if (repo.branch === d.data.commitId){
+        fillColor = "#56FCA2";
+      }
+
+      toolTip.style("display", "none"); 
+
+      // Optional cursor change removed
+      d3.select(event.target).style("cursor", "default");
+
+      // Optional highlight removed
+      d3.select(event.target)
+        .transition()
+        .style('fill', fillColor)
+        .style('stroke-width', '3px');
+    }
+
 
     // adds the text to the node
     node.append("text")
       .attr("dy", ".35em")
-      .attr("y", function (d) { return d.children ? -20 : 20; })
+      .attr("y", function (d) { return 20; })
       .style("text-anchor", "middle")
       .text(function (d) { return d.data.name; });
   }
