@@ -49,23 +49,6 @@ class TreeView {
     return textNode[index].parentElement.previousElementSibling.getAttribute("data-line-number");
   };
 
-  lineOf = (text, substring) => {
-    let line = 0, matchedChars = 0;
-
-    for (let i = 0; i < text.length; i++) {
-      text[i] === substring[matchedChars] ? matchedChars++ : matchedChars = 0;
-
-      if (matchedChars === substring.length) {
-        return line + 1;
-      }
-      if (text[i] === '\n') {
-        line++;
-      }
-    }
-
-    return -1;
-  }
-
   getLineNumberFromAPI = async (data) => {
     const { username, reponame, filePath, commitId, methodName } = data;
     let url = `https://api.github.com/repos/${username}/${reponame}/contents/${filePath}?ref=${commitId}`;
@@ -447,6 +430,7 @@ class TreeView {
 
   _chart(treeData, repo) {
     const treeBody = "body > nav > div.octotree-views > div.octotree-view.octotree-tree-view.current > div.octotree-view-body";
+    
     let margin = { top: 40, right: 5, bottom: 50, left: 5 },
       width = 210 - margin.left - margin.right,
       height = 620 - margin.top - margin.bottom;
@@ -455,25 +439,19 @@ class TreeView {
     let treemap = d3.tree()
       .size([width, height]);
 
-    //  assigns the data to a hierarchy using parent-child relationships
-    let nodes = d3.hierarchy(treeData);
-
-    // maps the node data to the tree layout
-    nodes = treemap(nodes);
-
-    // append the svg obgect to the body of the page
-    // appends a 'group' element to 'svg'
-    // moves the 'group' element to the top left margin
-
-    // let svg = d3.select("body > nav > div.octotree-views > div.octotree-view.octotree-tree-view.current > div.octotree-view-body").append("svg") 
-
     let svg = d3.select(treeBody).append("svg")
       .attr("width", width + margin.left + margin.right)
       .attr("height", height + margin.top + margin.bottom),
       g = svg.append("g")
         .attr("transform",
           "translate(" + margin.left + "," + margin.top + ")");
+      
+    //  assigns the data to a hierarchy using parent-child relationships
+    let nodes = d3.hierarchy(treeData);
 
+    // maps the node data to the tree layout
+    nodes = treemap(nodes);
+    
     // adds the links between the nodes
     let link = g.selectAll(".link")
       .data(nodes.descendants().slice(1))
@@ -485,8 +463,6 @@ class TreeView {
           + " " + d.parent.x + "," + (d.y + d.parent.y) / 2
           + " " + d.parent.x + "," + d.parent.y;
       });
-
-
 
     const redirectToCommitPage = async (event) => {
       const data = event.srcElement.__data__.data;
@@ -504,41 +480,23 @@ class TreeView {
       return url;
     }
 
-    function timeSince(timeStamp) {
-
-      timeStamp = new Date(timeStamp)
-      const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-
-      var now = new Date(),
-          secondsPast = (now.getTime() - timeStamp.getTime() ) / 1000;
-      if(secondsPast < 60){
-          return secondsPast + 's';
-      }
-      if(secondsPast < 3600){
-          return rtf.format(-1 * parseInt(secondsPast/60), 'minute');
-      }
-      if(secondsPast <= 86400){
-          return rtf.format(-1 * parseInt(secondsPast/3600), 'hour');
-      }
-      if(secondsPast <= 2628000){
-          return rtf.format(-1 * parseInt(secondsPast/86400), 'day');
-      }
-      if(secondsPast <= 31536000){
-        return rtf.format(-1 * parseInt(secondsPast/2628000), 'month');
-      }
-      if(secondsPast > 31536000){
-        return rtf.format(-1 * parseInt(secondsPast/31536000), 'year');
-      }
-  }
-
     let toolTip = d3.select(treeBody).append("div").attr("class", "treeToolTip");
+
+    const isExpandable = (changes) => {
+      for (let change of changes) {
+        if (change.includes("introduced: Extract Method")) {
+          return true;
+        }
+      }
+      return false;
+    }
 
     // adds each node as a group
     let node = g.selectAll(".node")
       .data(nodes.descendants())
       .enter().append("g")
       .attr("class", function (d) {
-        return "node node--internal" + (repo.branch === d.data.commitId ? " node--active" : "");
+        return "node node--internal" + (repo.branch === d.data.commitId ? " node--active" : "") + (isExpandable(d.data.changes) ? " node--expandable" : "");
       })
       .attr("transform", function (d) {
         return "translate(" + d.x + "," + d.y + ")";
@@ -553,31 +511,109 @@ class TreeView {
         return JSON.stringify(d.data.changes);
       })
 
+    function update(source) {
 
-    // adds the circle to the node
-    node.append("circle")
-      .attr("r", 12)
-      .attr("cursor", "pointer")
-      .on('mouseover', nodeMouseOver)
-      .on('mouseout', nodeMouseOut)
-      .on("click", redirectToCommitPage);
+      // Compute the new tree layout.
+      var nodes = tree.nodes(root).reverse(),
+        links = tree.links(nodes);
 
-    function nodeMouseOver(event, d) {   
+      // Normalize for fixed-depth.
+      nodes.forEach(function (d) { d.y = d.depth * 180; });
+
+      // Update the nodes…
+      var node = svg.selectAll("g.node")
+        .data(nodes, function (d) { return d.id || (d.id = ++i); });
+
+      // Enter any new nodes at the parent's previous position.
+      var nodeEnter = node.enter().append("g")
+        .attr("class", "node")
+        .attr("transform", function (d) { return "translate(" + source.y0 + "," + source.x0 + ")"; })
+        .on("click", click);
+
+      nodeEnter.append("circle")
+        .attr("r", 1e-6)
+        .style("fill", function (d) { return d._children ? "lightsteelblue" : "#fff"; });
+
+      nodeEnter.append("text")
+        .attr("x", function (d) { return d.children || d._children ? -13 : 13; })
+        .attr("dy", ".35em")
+        .attr("text-anchor", function (d) { return d.children || d._children ? "end" : "start"; })
+        .text(function (d) { return d.name; })
+        .style("fill-opacity", 1e-6);
+
+      // Transition nodes to their new position.
+      var nodeUpdate = node.transition()
+        .duration(duration)
+        .attr("transform", function (d) { return "translate(" + d.y + "," + d.x + ")"; });
+
+      nodeUpdate.select("circle")
+        .attr("r", 10)
+        .style("fill", function (d) { return d._children ? "lightsteelblue" : "#fff"; });
+
+      nodeUpdate.select("text")
+        .style("fill-opacity", 1);
+
+      // Transition exiting nodes to the parent's new position.
+      var nodeExit = node.exit().transition()
+        .duration(duration)
+        .attr("transform", function (d) { return "translate(" + source.y + "," + source.x + ")"; })
+        .remove();
+
+      nodeExit.select("circle")
+        .attr("r", 1e-6);
+
+      nodeExit.select("text")
+        .style("fill-opacity", 1e-6);
+
+      // Update the links…
+      var link = svg.selectAll("path.link")
+        .data(links, function (d) { return d.target.id; });
+
+      // Enter any new links at the parent's previous position.
+      link.enter().insert("path", "g")
+        .attr("class", "link")
+        .attr("d", function (d) {
+          var o = { x: source.x0, y: source.y0 };
+          return diagonal({ source: o, target: o });
+        });
+
+      // Transition links to their new position.
+      link.transition()
+        .duration(duration)
+        .attr("d", diagonal);
+
+      // Transition exiting nodes to the parent's new position.
+      link.exit().transition()
+        .duration(duration)
+        .attr("d", function (d) {
+          var o = { x: source.x, y: source.y };
+          return diagonal({ source: o, target: o });
+        })
+        .remove();
+
+      // Stash the old positions for transition.
+      nodes.forEach(function (d) {
+        d.x0 = d.x;
+        d.y0 = d.y;
+      });
+    }
+
+    function nodeMouseOver(event, d) {
       const toolTipContents = `
-      <div>
-      By <b>${d.data.committer}</b>, ${timeSince(d.data.date.split("T")[0])}
-      <br/>
-      <p style="font-style: italics; margin-bottom: 15px;">${d.data.changes}</p>
-      <b>${d.data.commitId}</b>
-      </div>`;
-      
+        <div>
+        By <b>${d.data.committer}</b>, ${timeSince(d.data.date.split("T")[0])}
+        <br/>
+        <p style="font-style: italics; margin-bottom: 15px;">${d.data.changes}</p>
+        <b>${d.data.commitId}</b>
+        </div>`;
+
       let fillColor = '#d0f2e0';
-      if (repo.branch === d.data.commitId){
+      if (repo.branch === d.data.commitId) {
         fillColor = "#56FCA2";
       }
 
       const element = event.target.getBoundingClientRect();
-      toolTip.style("left", element.left + 30 +"px")
+      toolTip.style("left", element.left + 30 + "px")
         .style("top", element.top - 5 + "px")
         .style("display", "block")
         .html(toolTipContents);
@@ -594,11 +630,11 @@ class TreeView {
 
     function nodeMouseOut(event, d) {
       let fillColor = '#fff';
-      if (repo.branch === d.data.commitId){
+      if (repo.branch === d.data.commitId) {
         fillColor = "#56FCA2";
       }
 
-      toolTip.style("display", "none"); 
+      toolTip.style("display", "none");
 
       // Optional cursor change removed
       d3.select(event.target).style("cursor", "default");
@@ -610,13 +646,24 @@ class TreeView {
         .style('stroke-width', '3px');
     }
 
+    // adds the circle to the node
+    node.append("circle")
+      .attr("r", 12)
+      .attr("cursor", "pointer")
+      .on('mouseover', nodeMouseOver)
+      .on('mouseout', nodeMouseOut)
+      .on("click", redirectToCommitPage);
+
 
     // adds the text to the node
-    node.append("text")
+    node.append("a")
+      .style("fill", "#483D8B")
+      .style("cursor", "pointer")
+      .append("text")
       .attr("dy", ".35em")
       .attr("y", function (d) { return 20; })
       .style("text-anchor", "middle")
-      .text(function (d) { return d.data.name; });
+      .text(function (d) { return d.data.name; })
   }
 
   _initialScreen() {
