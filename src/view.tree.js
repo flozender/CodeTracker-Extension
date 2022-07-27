@@ -606,10 +606,11 @@ class TreeView {
         <p style="font-style: italics; margin-bottom: 15px;">${d.data.changes}</p>
         <b>${d.data.commitId}</b>
         </div>`;
+  
 
-      let fillColor = '#d0f2e0';
+      let fillColor = '#ccffcf';
       if (repo.branch === d.data.commitId) {
-        fillColor = "#56FCA2";
+        fillColor = "#26a641";
       }
 
       const element = event.target.getBoundingClientRect();
@@ -631,7 +632,7 @@ class TreeView {
     function nodeMouseOut(event, d) {
       let fillColor = '#fff';
       if (repo.branch === d.data.commitId) {
-        fillColor = "#56FCA2";
+        fillColor = "#26a641";
       }
 
       toolTip.style("display", "none");
@@ -652,18 +653,30 @@ class TreeView {
       .attr("cursor", "pointer")
       .on('mouseover', nodeMouseOver)
       .on('mouseout', nodeMouseOut)
-      .on("click", redirectToCommitPage);
+      .on("click", redirectToCommitPage)
+      .on("contextmenu", function (event, d) {
+        event.preventDefault();
+        // react on right-clicking
+        console.log("Right click")
+    });
 
 
     // adds the text to the node
-    node.append("a")
-      .style("fill", "#483D8B")
+    const linkColor = "#1287A8";
+    node
+      .append("a")
+      .style("fill", linkColor)
       .style("cursor", "pointer")
+      .style("text-decoration", "none")
+      .on("mouseover", (event)=>{d3.select(event.target).style("fill", "skyblue");})
+      .on("mouseout", (event)=>{d3.select(event.target).style("fill", linkColor);})
       .append("text")
       .attr("dy", ".35em")
       .attr("y", function (d) { return 20; })
       .style("text-anchor", "middle")
+      .style("font-weight", "bold")
       .text(function (d) { return d.data.name; })
+      .on("click", redirectToCommitPage);
   }
 
   _initialScreen() {
