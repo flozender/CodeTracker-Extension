@@ -5,6 +5,7 @@ class TreeView {
     this.selectionText;
     this.lineNumber;
     this.filePath;
+    this.nodeCount;
 
     this.$view = $dom.find('.octotree-tree-view');
     this.$document = $(document);
@@ -36,6 +37,7 @@ class TreeView {
       // capture methodname and filepath here
       this.sessionFilePath = await window.extStore.get(window.STORE.FILE_PATH);
       this.sessionMethodName = await window.extStore.get(window.STORE.METHOD_NAME);
+      this.nodeCount = await window.extStore.get(window.STORE.NODE_COUNT);
     }
     catch (err) {
       console.log("No session", err);
@@ -253,8 +255,9 @@ class TreeView {
         const transformDataForTree = (data, username, reponame, currentNode) => {
           let root = { children: [] };
           let treeData = root["children"];
-          let { branch } = currentNode;
+          // let { branch } = currentNode;
           data = data.reverse();
+          this.nodeCount = data.length;
           let parent = "null";
           // check if current commit has a refactoring, if not add a dummy checkpoint node
           // let parent = branch.substring(0, 7);
@@ -309,6 +312,7 @@ class TreeView {
         await window.extStore.set(window.STORE.SELECTION_TEXT, null);
         await window.extStore.set(window.STORE.FILE_PATH, null);
         await window.extStore.set(window.STORE.METHOD_NAME, null);
+        await window.extStore.set(window.STORE.NODE_COUNT, 0);
         this.$document.trigger(EVENT.REQ_END);
         const currentUrl = window.location.toString();
         window.location = currentUrl.split("#")[0];
@@ -430,255 +434,281 @@ class TreeView {
 
   _chart(treeData, repo) {
     const treeBody = "body > nav > div.octotree-views > div.octotree-view.octotree-tree-view.current > div.octotree-view-body";
-    
-    let margin = { top: 40, right: 5, bottom: 50, left: 5 },
-      width = 210 - margin.left - margin.right,
-      height = 620 - margin.top - margin.bottom;
 
-    // declares a tree layout and assigns the size
-    let treemap = d3.tree()
-      .size([width, height]);
+    let margin = { top: 40, right: 5, bottom: 50, left: 5 },
+      width = 215 - margin.left - margin.right,
+      height = ( this.nodeCount ? 55 * this.nodeCount : 550 ) - margin.top - margin.bottom;
 
     let svg = d3.select(treeBody).append("svg")
       .attr("width", width + margin.left + margin.right)
-      .attr("height", height + margin.top + margin.bottom),
-      g = svg.append("g")
-        .attr("transform",
-          "translate(" + margin.left + "," + margin.top + ")");
-      
+      .attr("height", height + margin.top + margin.bottom)
+      .append("g")
+      .attr("transform",
+      "translate(" + margin.left + "," + margin.top + ")");
+
+    var i = 0,
+      duration = 500,
+      root;
+
+    // declares a tree layout and assigns the size
+    let treemap = d3.tree().size([width, height]);
+
+
     //  assigns the data to a hierarchy using parent-child relationships
-    let nodes = d3.hierarchy(treeData);
+    root = d3.hierarchy(treeData);
 
-    // maps the node data to the tree layout
-    nodes = treemap(nodes);
-    
-    // adds the links between the nodes
-    let link = g.selectAll(".link")
-      .data(nodes.descendants().slice(1))
-      .enter().append("path")
-      .attr("class", "link")
-      .attr("d", function (d) {
-        return "M" + d.x + "," + d.y
-          + "C" + d.x + "," + (d.y + d.parent.y) / 2
-          + " " + d.parent.x + "," + (d.y + d.parent.y) / 2
-          + " " + d.parent.x + "," + d.parent.y;
-      });
+    root.x0 = width / 2;
+    root.y0 = 0;
 
-    const redirectToCommitPage = async (event) => {
-      const data = event.srcElement.__data__.data;
-      const { username, reponame, commitId, filePath, methodName } = data;
-      let url = `https://github.com/${username}/${reponame}/commit/${commitId}`;
-      console.log(url);
 
-      // store all info to storage for next page
-      await window.extStore.set(window.STORE.TREE_DATA, this.treeData);
-      await window.extStore.set(window.STORE.SELECTION_TEXT, this.selectionText);
-      await window.extStore.set(window.STORE.FILE_PATH, filePath);
-      await window.extStore.set(window.STORE.METHOD_NAME, methodName);
+    update(root, {selectionText: this.selectionText, nodeCount: this.nodeCount});
 
-      window.location = url;
-      return url;
-    }
-
-    let toolTip = d3.select(treeBody).append("div").attr("class", "treeToolTip");
-
-    const isExpandable = (changes) => {
-      for (let change of changes) {
-        if (change.includes("introduced: Extract Method")) {
-          return true;
-        }
+    function collapse(d) {
+      if (d.children) {
+        d._children = d.children
+        d._children.forEach(collapse)
+        d.children = null;
       }
-      return false;
     }
+    // Update
+    function update(source, data) {
+      const {selectionText, nodeCount} = data;
+      
+      const redirectToCommitPage = async (event) => {
+        const data = event.srcElement.__data__.data;
+        const { username, reponame, commitId, filePath, methodName } = data;
+        let url = `https://github.com/${username}/${reponame}/commit/${commitId}`;
+        console.log(url);
 
-    // adds each node as a group
-    let node = g.selectAll(".node")
-      .data(nodes.descendants())
-      .enter().append("g")
-      .attr("class", function (d) {
-        return "node node--internal" + (repo.branch === d.data.commitId ? " node--active" : "") + (isExpandable(d.data.changes) ? " node--expandable" : "");
-      })
-      .attr("transform", function (d) {
-        return "translate(" + d.x + "," + d.y + ")";
-      })
-      .attr("data-commitId", function (d) {
-        return d.data.commitId;
-      })
-      .attr("data-filePath", function (d) {
-        return d.data.filePath;
-      })
-      .attr("data-changes", function (d) {
-        return JSON.stringify(d.data.changes);
-      })
+        // store all info to storage for next page
+        await window.extStore.set(window.STORE.TREE_DATA, treeData);
+        await window.extStore.set(window.STORE.SELECTION_TEXT, selectionText);
+        await window.extStore.set(window.STORE.FILE_PATH, filePath);
+        await window.extStore.set(window.STORE.METHOD_NAME, methodName);
+        await window.extStore.set(window.STORE.NODE_COUNT, nodeCount);
 
-    function update(source) {
+        window.location = url;
+        return url;
+      }
 
+      let toolTip = d3.select(treeBody).append("div").attr("class", "treeToolTip");
+
+      const isExpandable = (changes) => {
+        for (let change of changes) {
+          if (change.includes("introduced: Extract Method")) {
+            return true;
+          }
+        }
+        return false;
+      }
+      // maps the node data to the tree layout
+      var treeDataMap = treemap(root);
       // Compute the new tree layout.
-      var nodes = tree.nodes(root).reverse(),
-        links = tree.links(nodes);
+      var nodes = treeDataMap.descendants(),
+        links = treeDataMap.descendants().slice(1);
+      // Normalize for fixed-depth
+      nodes.forEach(function (d) { d.y = d.depth * 50 });
 
-      // Normalize for fixed-depth.
-      nodes.forEach(function (d) { d.y = d.depth * 180; });
+      // adds each node as a group
+      let node = svg.selectAll("g.node")
+        .data(nodes, function (d) { return d.id || (d.id = ++i); })
 
-      // Update the nodes…
-      var node = svg.selectAll("g.node")
-        .data(nodes, function (d) { return d.id || (d.id = ++i); });
+      let nodeEnter = node
+        .enter().append("g")
+        .attr("class", function (d) {
+          return "node node--internal" + (repo.branch === d.data.commitId ? " node--active" : "") + (isExpandable(d.data.changes) ? " node--expandable" : "");
+        })
+        .attr("transform", function (d) {
+          return "translate(" + source.x0 + "," + source.y0 + ")";
+        })
+        .attr("data-commitId", function (d) {
+          return d.data.commitId;
+        })
+        .attr("data-filePath", function (d) {
+          return d.data.filePath;
+        })
+        .attr("data-changes", function (d) {
+          return JSON.stringify(d.data.changes);
+        })
+        .on('contextmenu', click);
 
-      // Enter any new nodes at the parent's previous position.
-      var nodeEnter = node.enter().append("g")
-        .attr("class", "node")
-        .attr("transform", function (d) { return "translate(" + source.y0 + "," + source.x0 + ")"; })
-        .on("click", click);
-
+      // adds the circle to the node
       nodeEnter.append("circle")
-        .attr("r", 1e-6)
-        .style("fill", function (d) { return d._children ? "lightsteelblue" : "#fff"; });
+        .attr('class', 'node')
+        .attr('r', 1e-6)
+        .attr("cursor", "pointer")
+        .on('mouseover', nodeMouseOver)
+        .on('mouseout', nodeMouseOut)
+        .on("click", redirectToCommitPage)
+        .style("fill", function (d) {
+          return d._children ? "lightsteelblue" : "#fff";
+        });
+      // .on("contextmenu", click);
 
-      nodeEnter.append("text")
-        .attr("x", function (d) { return d.children || d._children ? -13 : 13; })
+      // adds the text to the node
+      const linkColor = "#1287A8";
+      nodeEnter
+        .append("a")
+        .style("fill", linkColor)
+        .style("cursor", "pointer")
+        .style("text-decoration", "none")
+        .on("mouseover", (event) => { d3.select(event.target).style("fill", "skyblue"); })
+        .on("mouseout", (event) => { d3.select(event.target).style("fill", linkColor); })
+        .append("text")
         .attr("dy", ".35em")
-        .attr("text-anchor", function (d) { return d.children || d._children ? "end" : "start"; })
-        .text(function (d) { return d.name; })
-        .style("fill-opacity", 1e-6);
+        .attr("y", function (d) { return 20; })
+        .attr("text-anchor", "middle")
+        .style("font-weight", "bold")
+        .text(function (d) { return d.data.name; })
+        .on("click", redirectToCommitPage);
 
-      // Transition nodes to their new position.
-      var nodeUpdate = node.transition()
+      var nodeUpdate = nodeEnter.merge(node);
+
+      nodeUpdate.transition()
         .duration(duration)
-        .attr("transform", function (d) { return "translate(" + d.y + "," + d.x + ")"; });
-
-      nodeUpdate.select("circle")
-        .attr("r", 10)
-        .style("fill", function (d) { return d._children ? "lightsteelblue" : "#fff"; });
-
-      nodeUpdate.select("text")
-        .style("fill-opacity", 1);
-
-      // Transition exiting nodes to the parent's new position.
-      var nodeExit = node.exit().transition()
-        .duration(duration)
-        .attr("transform", function (d) { return "translate(" + source.y + "," + source.x + ")"; })
-        .remove();
-
-      nodeExit.select("circle")
-        .attr("r", 1e-6);
-
-      nodeExit.select("text")
-        .style("fill-opacity", 1e-6);
-
-      // Update the links…
-      var link = svg.selectAll("path.link")
-        .data(links, function (d) { return d.target.id; });
-
-      // Enter any new links at the parent's previous position.
-      link.enter().insert("path", "g")
-        .attr("class", "link")
-        .attr("d", function (d) {
-          var o = { x: source.x0, y: source.y0 };
-          return diagonal({ source: o, target: o });
+        .attr("transform", function (d) {
+          return "translate(" + d.x + "," + d.y + ")";
         });
 
-      // Transition links to their new position.
-      link.transition()
-        .duration(duration)
-        .attr("d", diagonal);
+      // Update the node attributes and style
+      nodeUpdate.select('circle.node')
+        .attr('r', 12)
+        .style("fill", function (d) {
+          return d._children ? "lightsteelblue" : "#fff";
+        })
+        .attr('cursor', 'pointer');
 
-      // Transition exiting nodes to the parent's new position.
-      link.exit().transition()
+      let nodeExit = node.exit().transition()
         .duration(duration)
-        .attr("d", function (d) {
-          var o = { x: source.x, y: source.y };
-          return diagonal({ source: o, target: o });
+        .attr("transform", function (d) {
+          return "translate(" + source.x + "," + source.y + ")";
         })
         .remove();
 
-      // Stash the old positions for transition.
+      // On exit reduce the node circles size to 0
+      nodeExit.select('circle')
+        .attr('r', 1e-6);
+
+      // On exit reduce the opacity of text lables  
+      nodeExit.select('text')
+        .style('fill-opacity', 1e-6)
+
+      // adds the links between the nodes
+      let link = svg.selectAll(".link")
+        .data(links, function (d) { return d.id; })
+
+      let linkEnter = link
+        .enter().insert("path", "g")
+        .attr("class", "link")
+        .attr("d", function (d) {
+          var o = { x: source.x0, y: source.y0 };
+          return diagonal(o, o);
+        });
+
+      var linkUpdate = linkEnter.merge(link);
+
+      // Transition back to the parent element position
+      linkUpdate.transition()
+        .duration(duration)
+        .attr('d', function (d) { return diagonal(d, d.parent) });
+
+      // Remove any existing links
+      var linkExit = link.exit().transition()
+        .duration(duration)
+        .attr('d', function (d) {
+          var o = { x: source.x, y: source.y };
+          return diagonal(o,o);
+        })
+        .remove();
+
+      // Store the old positions for transition.
       nodes.forEach(function (d) {
         d.x0 = d.x;
         d.y0 = d.y;
       });
-    }
 
-    function nodeMouseOver(event, d) {
-      const toolTipContents = `
+      // Create a curved (diagonal) path from parent to the child nodes
+      function diagonal(s, d) {
+        let path = `M ${s.x} ${s.y}
+    C ${(s.x + d.x) / 2} ${s.y},
+      ${(s.x + d.x) / 2} ${d.y},
+      ${d.x} ${d.y}`
+
+        return path;
+      }
+
+      // Toggle children on click
+      function click(event, d) {
+        event.preventDefault()
+        if (d.children) {
+          d._children = d.children;
+          d.children = null;
+        }
+        else {
+          d.children = d._children;
+          d._children = null;
+        }
+        update(d, data);
+      }
+
+
+
+
+      function nodeMouseOver(event, d) {
+        const toolTipContents = `
         <div>
         By <b>${d.data.committer}</b>, ${timeSince(d.data.date.split("T")[0])}
         <br/>
         <p style="font-style: italics; margin-bottom: 15px;">${d.data.changes}</p>
         <b>${d.data.commitId}</b>
         </div>`;
-  
 
-      let fillColor = '#ccffcf';
-      if (repo.branch === d.data.commitId) {
-        fillColor = "#26a641";
+
+        let fillColor = '#ccffcf';
+        if (repo.branch === d.data.commitId) {
+          fillColor = "#26a641";
+        }
+
+        const element = event.target.getBoundingClientRect();
+        toolTip.style("left", element.left + 30 + "px")
+          .style("top", element.top - 5 + "px")
+          .style("display", "block")
+          .html(toolTipContents);
+
+        // Optional cursor change on target
+        d3.select(event.target).style("cursor", "pointer");
+
+        // Optional highlight effects on target
+        d3.select(event.target)
+          .transition()
+          .style('fill', fillColor)
+          .style('stroke-width', '4px');
       }
 
-      const element = event.target.getBoundingClientRect();
-      toolTip.style("left", element.left + 30 + "px")
-        .style("top", element.top - 5 + "px")
-        .style("display", "block")
-        .html(toolTipContents);
+      function nodeMouseOut(event, d) {
+        let fillColor = '#fff';
+        if (repo.branch === d.data.commitId) {
+          fillColor = "#26a641";
+        }
 
-      // Optional cursor change on target
-      d3.select(event.target).style("cursor", "pointer");
+        toolTip.style("display", "none");
 
-      // Optional highlight effects on target
-      d3.select(event.target)
-        .transition()
-        .style('fill', fillColor)
-        .style('stroke-width', '4px');
-    }
+        // Optional cursor change removed
+        d3.select(event.target).style("cursor", "default");
 
-    function nodeMouseOut(event, d) {
-      let fillColor = '#fff';
-      if (repo.branch === d.data.commitId) {
-        fillColor = "#26a641";
+        // Optional highlight removed
+        d3.select(event.target)
+          .transition()
+          .style('fill', fillColor)
+          .style('stroke-width', '3px');
       }
 
-      toolTip.style("display", "none");
 
-      // Optional cursor change removed
-      d3.select(event.target).style("cursor", "default");
 
-      // Optional highlight removed
-      d3.select(event.target)
-        .transition()
-        .style('fill', fillColor)
-        .style('stroke-width', '3px');
+
+
     }
-
-    // adds the circle to the node
-    node.append("circle")
-      .attr("r", 12)
-      .attr("cursor", "pointer")
-      .on('mouseover', nodeMouseOver)
-      .on('mouseout', nodeMouseOut)
-      .on("click", redirectToCommitPage)
-      .on("contextmenu", function (event, d) {
-        event.preventDefault();
-        // react on right-clicking
-        console.log("Right click")
-    });
-
-
-    // adds the text to the node
-    const linkColor = "#1287A8";
-    node
-      .append("a")
-      .style("fill", linkColor)
-      .style("cursor", "pointer")
-      .style("text-decoration", "none")
-      .on("mouseover", (event)=>{d3.select(event.target).style("fill", "skyblue");})
-      .on("mouseout", (event)=>{d3.select(event.target).style("fill", linkColor);})
-      .append("text")
-      .attr("dy", ".35em")
-      .attr("y", function (d) { return 20; })
-      .style("text-anchor", "middle")
-      .style("font-weight", "bold")
-      .text(function (d) { return d.data.name; })
-      .on("click", redirectToCommitPage);
   }
-
   _initialScreen() {
     this._removeTreeBody();
     const instructions = `
