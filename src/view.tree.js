@@ -252,6 +252,15 @@ class TreeView {
             this.$document.trigger(EVENT.REQ_END);
           });
 
+        const isExpandable = (changes) => {
+          for (let change of changes) {
+            if (change.includes("introduced: Extract Method")) {
+              return true;
+            }
+          }
+          return false;
+        }
+
         const transformDataForTree = (data, username, reponame, currentNode) => {
           let root = { children: [] };
           let treeData = root["children"];
@@ -277,7 +286,8 @@ class TreeView {
               methodName,
               username,
               reponame,
-              children: []
+              children: [],
+              isExpandable: isExpandable(changes)
             }
             treeData.push(child);
             treeData = child['children'];
@@ -437,14 +447,14 @@ class TreeView {
 
     let margin = { top: 40, right: 5, bottom: 50, left: 5 },
       width = 215 - margin.left - margin.right,
-      height = ( this.nodeCount ? 55 * this.nodeCount : 550 ) - margin.top - margin.bottom;
+      height = (this.nodeCount ? 55 * this.nodeCount : 550) - margin.top - margin.bottom;
 
     let svg = d3.select(treeBody).append("svg")
       .attr("width", width + margin.left + margin.right)
       .attr("height", height + margin.top + margin.bottom)
       .append("g")
       .attr("transform",
-      "translate(" + margin.left + "," + margin.top + ")");
+        "translate(" + margin.left + "," + margin.top + ")");
 
     var i = 0,
       duration = 500,
@@ -461,7 +471,7 @@ class TreeView {
     root.y0 = 0;
 
 
-    update(root, {selectionText: this.selectionText, nodeCount: this.nodeCount});
+    update(root, { selectionText: this.selectionText, nodeCount: this.nodeCount });
 
     function collapse(d) {
       if (d.children) {
@@ -472,8 +482,8 @@ class TreeView {
     }
     // Update
     function update(source, data) {
-      const {selectionText, nodeCount} = data;
-      
+      const { selectionText, nodeCount } = data;
+
       const redirectToCommitPage = async (event) => {
         const data = event.srcElement.__data__.data;
         const { username, reponame, commitId, filePath, methodName } = data;
@@ -491,16 +501,26 @@ class TreeView {
         return url;
       }
 
+      const fillNode = (d, hover) => {
+        if (d._children){
+          return "lightsteelblue";
+        } 
+        if (repo.branch === d.data.commitId) {
+          return "#26a641";
+        }
+        if (hover) {
+          return "#ccffcf"
+        }
+        if (d.data.isExpandable){
+          return "rgba(241, 189, 16, 0.932)";
+        }
+
+        return "#fff";
+      }
+
       let toolTip = d3.select(treeBody).append("div").attr("class", "treeToolTip");
 
-      const isExpandable = (changes) => {
-        for (let change of changes) {
-          if (change.includes("introduced: Extract Method")) {
-            return true;
-          }
-        }
-        return false;
-      }
+
       // maps the node data to the tree layout
       var treeDataMap = treemap(root);
       // Compute the new tree layout.
@@ -516,7 +536,7 @@ class TreeView {
       let nodeEnter = node
         .enter().append("g")
         .attr("class", function (d) {
-          return "node node--internal" + (repo.branch === d.data.commitId ? " node--active" : "") + (isExpandable(d.data.changes) ? " node--expandable" : "");
+          return "node node--internal" + (repo.branch === d.data.commitId ? " node--active" : "") + (d.data.isExpandable ? " node--expandable" : "");
         })
         .attr("transform", function (d) {
           return "translate(" + source.x0 + "," + source.y0 + ")";
@@ -530,7 +550,6 @@ class TreeView {
         .attr("data-changes", function (d) {
           return JSON.stringify(d.data.changes);
         })
-        .on('contextmenu', click);
 
       // adds the circle to the node
       nodeEnter.append("circle")
@@ -540,10 +559,8 @@ class TreeView {
         .on('mouseover', nodeMouseOver)
         .on('mouseout', nodeMouseOut)
         .on("click", redirectToCommitPage)
-        .style("fill", function (d) {
-          return d._children ? "lightsteelblue" : "#fff";
-        });
-      // .on("contextmenu", click);
+        .on('contextmenu', click)
+        .style("fill", (d)=>fillNode(d, false))
 
       // adds the text to the node
       const linkColor = "#1287A8";
@@ -573,9 +590,7 @@ class TreeView {
       // Update the node attributes and style
       nodeUpdate.select('circle.node')
         .attr('r', 12)
-        .style("fill", function (d) {
-          return d._children ? "lightsteelblue" : "#fff";
-        })
+        .style("fill", (d)=>fillNode(d, false))
         .attr('cursor', 'pointer');
 
       let nodeExit = node.exit().transition()
@@ -617,7 +632,7 @@ class TreeView {
         .duration(duration)
         .attr('d', function (d) {
           var o = { x: source.x, y: source.y };
-          return diagonal(o,o);
+          return diagonal(o, o);
         })
         .remove();
 
@@ -651,9 +666,6 @@ class TreeView {
         update(d, data);
       }
 
-
-
-
       function nodeMouseOver(event, d) {
         const toolTipContents = `
         <div>
@@ -662,12 +674,6 @@ class TreeView {
         <p style="font-style: italics; margin-bottom: 15px;">${d.data.changes}</p>
         <b>${d.data.commitId}</b>
         </div>`;
-
-
-        let fillColor = '#ccffcf';
-        if (repo.branch === d.data.commitId) {
-          fillColor = "#26a641";
-        }
 
         const element = event.target.getBoundingClientRect();
         toolTip.style("left", element.left + 30 + "px")
@@ -681,15 +687,11 @@ class TreeView {
         // Optional highlight effects on target
         d3.select(event.target)
           .transition()
-          .style('fill', fillColor)
+          .style('fill', (d)=>fillNode(d, true))
           .style('stroke-width', '4px');
       }
 
       function nodeMouseOut(event, d) {
-        let fillColor = '#fff';
-        if (repo.branch === d.data.commitId) {
-          fillColor = "#26a641";
-        }
 
         toolTip.style("display", "none");
 
@@ -699,7 +701,7 @@ class TreeView {
         // Optional highlight removed
         d3.select(event.target)
           .transition()
-          .style('fill', fillColor)
+          .style('fill', (d)=>fillNode(d, false))
           .style('stroke-width', '3px');
       }
 
