@@ -6,6 +6,7 @@ class TreeView {
     this.lineNumber;
     this.filePath;
     this.nodeCount;
+    this.evoHookData;
 
     this.$view = $dom.find('.octotree-tree-view');
     this.$document = $(document);
@@ -186,13 +187,92 @@ class TreeView {
     if (!window.location.toString().includes("#") && this.sessionMethodName) {
       this.scrollToCodeElement(this.sessionFilePath, this.sessionMethodName);
     }
-    console.log("TREEDATA iS nOW", this.treeData);
+    console.log("TreeData is now", this.treeData);
     if (this.treeData.commitId) {
-      this.chart = this._chart(this.treeData, repo);
+      this.drawTree(repo);
     } else {
       this._initialScreen()
     }
     $(this).trigger(EVENT.VIEW_READY);
+  }
+
+  isExpandable = (changes) => {
+    for (let change of changes) {
+      if (change.includes("introduced: Extract Method")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  transformDataForTree = (data, username, reponame, evolution) => {
+    let root = { children: [] };
+    let treeData = root["children"];
+    // let { branch } = currentNode;
+    data = data.reverse();
+    if (evolution){
+      this.nodeCount += data.length;
+    } else {
+      this.nodeCount = data.length;
+    }
+    let parent = "null";
+    // check if current commit has a refactoring, if not add a dummy checkpoint node
+    // let parent = branch.substring(0, 7);
+    for (let commit of data) {
+      let filePath = commit.after.split("#")[0].replaceAll(".", "/") + '.java';
+      let methodName = commit.after.split("#")[1].slice(0, -2)
+      let commitIdHash = commit.commitId.substring(0, 7);
+      let { changes, date, commitId, committer } = commit;
+      let child = {
+        name: commitIdHash,
+        changes,
+        date,
+        commitId,
+        committer,
+        parent,
+        filePath,
+        methodName,
+        username,
+        reponame,
+        children: [],
+        isExpandable: this.isExpandable(changes)
+      }
+      treeData.push(child);
+      treeData = child['children'];
+      parent = commitId;
+    }
+
+    // const currentCommitNode = {
+    //   name: branch.substring(0, 7),
+    //   changes: ["CodeTracker: Initialized on this commit"],
+    //   date: $(document).find(`relative-time`)[0].getAttribute("datetime"),
+    //   commitId: branch,
+    //   committer: $(document).find('.commit-author')[0].innerHTML,
+    //   parent: "null",
+    //   filePath: currentNode.filePath,
+    //   methodName: currentNode.methodName,
+    //   username,
+    //   reponame,
+    //   children: [root.children[0]]
+    // }
+    // console.log(currentCommitNode);
+    // return currentCommitNode;
+
+    console.log(root.children[0]);
+    return root.children[0];
+  };
+
+  getDataFromAPI = async (data) => {
+    const { username, reponame, filePath, commitId, methodName, lineNumber, evolution } = data;
+    const params = `owner=${username}&repoName=${reponame}&filePath=${filePath}&commitId=${commitId}&methodName=${methodName}&lineNumber=${lineNumber}`;
+    const getRequest = `${API_URL}/method?${params}`;
+    console.log(getRequest);
+
+    let treeData = await fetch(getRequest)
+      .then(response => response.json());
+
+    let transformedTreeData = this.transformDataForTree(treeData, username, reponame, evolution);
+    return transformedTreeData;
   }
 
   _showHeader(repo) {
@@ -237,82 +317,10 @@ class TreeView {
         let selectionText = this.selectionText;
         let filePath = this.filePath;
         let lineNumber = this.lineNumber;
+        this.treeData = await this.getDataFromAPI({ username, reponame, filePath, commitId: branch, methodName: selectionText, lineNumber });
 
-        const params = `owner=${username}&repoName=${reponame}&filePath=${filePath}&commitId=${branch}&methodName=${selectionText}&lineNumber=${lineNumber}`;
-        const getRequest = `${API_URL}/method?${params}`;
-        console.log(getRequest);
-        fetch(getRequest)
-          .then(response => response.json())
-          .then(async (data) => {
-            console.log(data);
-            this.treeData = transformDataForTree(data, username, reponame, {
-              branch, methodName: selectionText, filePath
-            });
-            this._chart(this.treeData, repo);
-            this.$document.trigger(EVENT.REQ_END);
-          });
-
-        const isExpandable = (changes) => {
-          for (let change of changes) {
-            if (change.includes("introduced: Extract Method")) {
-              return true;
-            }
-          }
-          return false;
-        }
-
-        const transformDataForTree = (data, username, reponame, currentNode) => {
-          let root = { children: [] };
-          let treeData = root["children"];
-          // let { branch } = currentNode;
-          data = data.reverse();
-          this.nodeCount = data.length;
-          let parent = "null";
-          // check if current commit has a refactoring, if not add a dummy checkpoint node
-          // let parent = branch.substring(0, 7);
-          for (let commit of data) {
-            let filePath = commit.after.split("#")[0].replaceAll(".", "/") + '.java';
-            let methodName = commit.after.split("#")[1].slice(0, -2)
-            let commitIdHash = commit.commitId.substring(0, 7);
-            let { changes, date, commitId, committer } = commit;
-            let child = {
-              name: commitIdHash,
-              changes,
-              date,
-              commitId,
-              committer,
-              parent,
-              filePath,
-              methodName,
-              username,
-              reponame,
-              children: [],
-              isExpandable: isExpandable(changes)
-            }
-            treeData.push(child);
-            treeData = child['children'];
-            parent = commitId;
-          }
-
-          // const currentCommitNode = {
-          //   name: branch.substring(0, 7),
-          //   changes: ["CodeTracker: Initialized on this commit"],
-          //   date: $(document).find(`relative-time`)[0].getAttribute("datetime"),
-          //   commitId: branch,
-          //   committer: $(document).find('.commit-author')[0].innerHTML,
-          //   parent: "null",
-          //   filePath: currentNode.filePath,
-          //   methodName: currentNode.methodName,
-          //   username,
-          //   reponame,
-          //   children: [root.children[0]]
-          // }
-          // console.log(currentCommitNode);
-          // return currentCommitNode;
-
-          console.log(root.children[0]);
-          return root.children[0];
-        };
+        this.drawTree(repo);
+        this.$document.trigger(EVENT.REQ_END);
       })
       .on('click', '#codeElementReset', async (event) => {
         event.preventDefault();
@@ -442,14 +450,15 @@ class TreeView {
     }
   }
 
-  _chart(treeData, repo) {
+  drawTree = (repo) => {
     const treeBody = "body > nav > div.octotree-views > div.octotree-view.octotree-tree-view.current > div.octotree-view-body";
 
     let margin = { top: 40, right: 5, bottom: 50, left: 5 },
       width = 215 - margin.left - margin.right,
       height = (this.nodeCount ? 55 * this.nodeCount : 550) - margin.top - margin.bottom;
-
+    $(treeBody)[0].innerHTML = null;
     let svg = d3.select(treeBody).append("svg")
+      .attr("id", "codetracker-svg")
       .attr("width", width + margin.left + margin.right)
       .attr("height", height + margin.top + margin.bottom)
       .append("g")
@@ -465,33 +474,23 @@ class TreeView {
 
 
     //  assigns the data to a hierarchy using parent-child relationships
-    root = d3.hierarchy(treeData);
+    root = d3.hierarchy(this.treeData);
 
     root.x0 = width / 2;
     root.y0 = 0;
 
-
-    update(root, { selectionText: this.selectionText, nodeCount: this.nodeCount });
-
-    function collapse(d) {
-      if (d.children) {
-        d._children = d.children
-        d._children.forEach(collapse)
-        d.children = null;
-      }
-    }
     // Update
-    function update(source, data) {
-      const { selectionText, nodeCount } = data;
+    const update = (source, data) => {
+      
+      const { selectionText, nodeCount, getFileDivFromFilePath, getDataFromAPI } = data;
 
-      const redirectToCommitPage = async (event) => {
-        const data = event.srcElement.__data__.data;
-        const { username, reponame, commitId, filePath, methodName } = data;
+      const redirectToCommitPage = async (event, d) => {
+        const { username, reponame, commitId, filePath, methodName } = d.data;
         let url = `https://github.com/${username}/${reponame}/commit/${commitId}`;
         console.log(url);
 
         // store all info to storage for next page
-        await window.extStore.set(window.STORE.TREE_DATA, treeData);
+        await window.extStore.set(window.STORE.TREE_DATA, this.treeData);
         await window.extStore.set(window.STORE.SELECTION_TEXT, selectionText);
         await window.extStore.set(window.STORE.FILE_PATH, filePath);
         await window.extStore.set(window.STORE.METHOD_NAME, methodName);
@@ -502,25 +501,28 @@ class TreeView {
       }
 
       const fillNode = (d, hover) => {
-        if (d._children){
+        const currentPage = repo.branch === d.data.commitId;
+        if (currentPage && d.data.isExpandable) {
+          return "rgba(245, 240, 173)";
+        }
+        if (d._children) {
           return "lightsteelblue";
-        } 
-        if (repo.branch === d.data.commitId) {
-          return "#26a641";
+        }
+        if (currentPage) {
+          return "#ccffcf";
+        }
+        if (hover && d.data.isExpandable) {
+          return "rgba(245, 240, 173)";
         }
         if (hover) {
           return "#ccffcf"
-        }
-        if (d.data.isExpandable){
-          return "rgba(241, 189, 16, 0.932)";
         }
 
         return "#fff";
       }
 
       let toolTip = d3.select(treeBody).append("div").attr("class", "treeToolTip");
-
-
+      
       // maps the node data to the tree layout
       var treeDataMap = treemap(root);
       // Compute the new tree layout.
@@ -551,6 +553,7 @@ class TreeView {
           return JSON.stringify(d.data.changes);
         })
 
+
       // adds the circle to the node
       nodeEnter.append("circle")
         .attr('class', 'node')
@@ -559,8 +562,8 @@ class TreeView {
         .on('mouseover', nodeMouseOver)
         .on('mouseout', nodeMouseOut)
         .on("click", redirectToCommitPage)
-        .on('contextmenu', click)
-        .style("fill", (d)=>fillNode(d, false))
+        .on('contextmenu', async (event, d) => { event.preventDefault(); await rightClick(event, d); })
+        .style("fill", (d) => fillNode(d, false))
 
       // adds the text to the node
       const linkColor = "#1287A8";
@@ -590,7 +593,7 @@ class TreeView {
       // Update the node attributes and style
       nodeUpdate.select('circle.node')
         .attr('r', 12)
-        .style("fill", (d)=>fillNode(d, false))
+        .style("fill", (d) => fillNode(d, false))
         .attr('cursor', 'pointer');
 
       let nodeExit = node.exit().transition()
@@ -625,7 +628,10 @@ class TreeView {
       // Transition back to the parent element position
       linkUpdate.transition()
         .duration(duration)
-        .attr('d', function (d) { return diagonal(d, d.parent) });
+        .attr('d', function (d) {
+
+          return diagonal(d, d.parent)
+        });
 
       // Remove any existing links
       var linkExit = link.exit().transition()
@@ -652,9 +658,75 @@ class TreeView {
         return path;
       }
 
+      const getLineNumberInnerText = (document, methodName) => {
+        let textNode = $(document).find(`td:contains('${methodName}')`);
+        const index = textNode.length - 1;
+        return textNode[index].previousElementSibling.getAttribute("data-line-number");
+      }
+
+      const getEvolutionHookData = async (node) => {
+        const { username, reponame, filePath, commitId } = node.data;
+        const change = node.data.changes[0];
+        let startIndex = change.indexOf("extracted from") + 15;
+        let endIndex = change.lastIndexOf(" : ");
+        let methodName = change.substring(startIndex, endIndex);
+        methodName = methodName.slice(methodName.indexOf(" "))
+        let range = [methodName.indexOf("("), methodName.indexOf(")")]
+        let params = methodName.substring(range[0] + 1, range[1]).split(",");
+        params = params.map((param) => {
+          let p = param.split(" ");
+          return p[1] + " " + p[0];
+        })
+        let paramString = params.reduce((pst, param) => pst + param + ", ", "(");
+        let switchedName = methodName.substring(0, range[0]) + paramString.slice(0, paramString.length - 2) + ")";
+        let fileDiv = getFileDivFromFilePath(filePath);
+        const lineNumber = getLineNumberInnerText(fileDiv, switchedName);
+        const childData = await getDataFromAPI({ username, reponame, filePath, commitId, methodName: methodName.slice(0, range[0]).trim(), lineNumber, evolution: true });
+        return childData;
+      }
+
       // Toggle children on click
-      function click(event, d) {
-        event.preventDefault()
+      const rightClick = async (event, d) => {
+        if (d.data.isExpandable && !d.children && !d._children) {
+          let evoHookData = await getEvolutionHookData(d);
+          let selected = d;
+          let childRoot = [];
+          let childArray = childRoot;
+          let parent = selected;
+          let current = evoHookData;
+
+          if (current.commitId == selected.data.commitId){
+            current = current["children"][0]
+          }
+
+          // add the children to the treedata obj
+          let iter = this.treeData;
+          while(iter && iter.commitId !== selected.data.commitId){
+            iter = iter.children[0];
+          }
+
+          iter.children = [current];
+
+          while (current) {
+            var obj = d3.hierarchy(current);
+            obj.parent = parent.data.commitId;
+            obj.depth = parent.depth + 1;
+            obj.height = parent.height - 1;
+            
+            obj.children = [];
+            obj._children = null;
+            
+            childArray.push(obj);
+
+            childArray = obj.children;
+            parent = current;
+            current = current.children[0];
+          }
+
+          selected.children = childRoot;
+          this.drawTree(repo);
+        }
+
         if (d.children) {
           d._children = d.children;
           d.children = null;
@@ -687,7 +759,7 @@ class TreeView {
         // Optional highlight effects on target
         d3.select(event.target)
           .transition()
-          .style('fill', (d)=>fillNode(d, true))
+          .style('fill', (d) => fillNode(d, true))
           .style('stroke-width', '4px');
       }
 
@@ -701,15 +773,18 @@ class TreeView {
         // Optional highlight removed
         d3.select(event.target)
           .transition()
-          .style('fill', (d)=>fillNode(d, false))
+          .style('fill', (d) => fillNode(d, false))
           .style('stroke-width', '3px');
       }
-
-
-
-
-
     }
+
+    update(root, {
+      selectionText: this.selectionText,
+      nodeCount: this.nodeCount,
+      getFileDivFromFilePath: this.getFileDivFromFilePath,
+      getDataFromAPI: this.getDataFromAPI,
+    });
+
   }
   _initialScreen() {
     this._removeTreeBody();
