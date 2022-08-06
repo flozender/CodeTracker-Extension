@@ -52,9 +52,20 @@ class TreeView {
     return textNode[index].parentElement.previousElementSibling.getAttribute("data-line-number");
   };
 
+  convertFilePathToJavaPath = (filePath) => {
+    return filePath.replaceAll(".", "/") + '.java';
+  }
+
+  convertFilePathToPackagePath = (filePath) => {
+    let splitPath = filePath.split(".");
+    let source = splitPath[0].slice(0, splitPath[0].lastIndexOf("/"));
+    let packagePath = source + "/" + splitPath[splitPath.length - 1] + ".java";
+    return packagePath;
+  }
+
   getLineNumberFromAPI = async (data) => {
     const { username, reponame, filePath, commitId, methodName } = data;
-    let url = `https://api.github.com/repos/${username}/${reponame}/contents/${filePath}?ref=${commitId}`;
+    let url = `https://api.github.com/repos/${username}/${reponame}/contents/${this.convertFilePathToJavaPath(filePath)}?ref=${commitId}`;
     console.log("GETTING ", url);
     let response = await fetch(url).then(response => response.json());
     let content = atob(response.content);
@@ -98,63 +109,60 @@ class TreeView {
 
   // get filediv when span is not available
   getFileDivFromFilePath = (filePath) => {
-    let textNodes = $(document).find(`div.file.js-file.js-details-container.js-targetable-element`)
-      console.log("SCANNED_FILE_DIVS", textNodes);
-      textNodes = textNodes.filter(
-        function () {
-          let matched =  $(this).data("tagsearch-path") === filePath;
-          if (matched){
-            console.log("TAG_PATH", $(this).data("tagsearch-path"), filePath)
-          }
-          return matched;
-        });
-      
+    let textNodes = $(document).find(`div.file.js-file.js-details-container.js-targetable-element`);
+    let javaFilePath = this.convertFilePathToJavaPath(filePath);
+    let packageFilePath = this.convertFilePathToPackagePath(filePath);
+
+    textNodes = textNodes.filter(
+      function () {
+        let matched = $(this).data("tagsearch-path") === javaFilePath || $(this).data("tagsearch-path") == packageFilePath;
+        return matched;
+      });
+
     return textNodes[0];
   }
 
   getMethodRow = (fileDiv, methodName) => {
     let tds = $(`#${fileDiv.getAttribute('id')} td.js-file-line`)
-    console.log("ALL_TDS", tds.length);
     tds = tds
       .filter(
         function () {
           return $(this).text().includes(methodName);
         });
-      console.log(tds);
     return tds[tds.length - 1]
   };
 
   expandAll = async (node) => {
     let diffNotLoaded = $(node).text().includes("Load diff");
-    if (diffNotLoaded){
+    if (diffNotLoaded) {
       console.log("DIFF UNLOADED")
       node.children[1].children[0].children[0].children[1].children[1].click();
       await sleep(1000);
     }
-    try{
+    try {
       let expandAllButton = node.children[0].children[0].children[1].children[0];
-      if (expandAllButton.type == "button"){
+      if (expandAllButton.type == "button") {
         expandAllButton.click();
         console.log("BUTTON EXPANDED", expandAllButton);
       } else {
         throw "No expand all button";
       }
-    } catch (err){
+    } catch (err) {
       console.log(err);
       let singleArrows = $(node).find("a.js-expand");
       let seen = new Set();
       let clicked;
-      while (singleArrows){
+      while (singleArrows) {
         clicked = false;
-        for (let singleArrow of singleArrows){
+        for (let singleArrow of singleArrows) {
           let rightRange = $(singleArrow).data("right-range");
-          if (!seen.has(rightRange) ){
+          if (!seen.has(rightRange)) {
             singleArrow.click();
             clicked = true;
             seen.add(rightRange);
           }
         }
-        if (!clicked){
+        if (!clicked) {
           break;
         }
         await sleep(500);
@@ -162,7 +170,7 @@ class TreeView {
         console.log("SINGLE_ARROWS", singleArrows);
       }
     }
-    await sleep(1000);
+    await sleep(700);
   }
 
   // scrolling main function
@@ -173,7 +181,7 @@ class TreeView {
     const scrollAgainAndTry = async () => {
       console.log("SCROLLING TO LOAD: ", counter);
       window.scrollTo(0, document.body.scrollHeight);
-      await sleep(3000);
+      await sleep(1500);
       if (!fileDiv) {
         fileDiv = this.getFileDivFromFilePath(filePath);
       }
@@ -186,19 +194,24 @@ class TreeView {
 
     }
 
-    const highlightLine = (methodRow) => {
-      if (methodRow){
+    const highlightLine = (methodRow, fallbackHash) => {
+      let diffHash;
+      if (methodRow) {
         console.log("HIGHLIGHT", methodName);
-        let diffHash = methodRow.previousElementSibling.getAttribute("id");
-        window.location = window.location.toString().split("#")[0] + "#" + diffHash;
+        diffHash = methodRow.previousElementSibling.getAttribute("id");
       } else {
         console.log("ERROR: Method row is missing.")
+        window.location = window.location.toString().split("#")[0] + "#" + diffHash;
+        diffHash = fallbackHash;
       }
+      window.location = window.location.toString().split("#")[0] + "#" + diffHash;
     }
 
     let fileDiv = this.getFileDivFromFilePath(filePath);
+    let lineSelected = $(document).find("td.selected-line").length > 0;
+    console.log("LINE_SELECTED", lineSelected);
 
-    if (!fileDiv) {
+    if (!fileDiv && !lineSelected) {
       await scrollAgainAndTry();
     }
     console.log("FILE_DIV", fileDiv);
@@ -207,7 +220,7 @@ class TreeView {
 
     let methodRow = this.getMethodRow(fileDiv, methodName);
     console.log("METHOD_ROW", methodRow);
-    highlightLine(methodRow);
+    highlightLine(methodRow, $(fileDiv).attr("id"));
 
     return;
   }
@@ -216,6 +229,7 @@ class TreeView {
     $(document).trigger(EVENT.REPO_LOADED, { repo });
     this._showHeader(repo);
     await this.restoreTreeData();
+
     if (this.sessionMethodName) {
       await this.scrollToCodeElement(this.sessionFilePath, this.sessionMethodName);
     }
@@ -251,10 +265,11 @@ class TreeView {
     // check if current commit has a refactoring, if not add a dummy checkpoint node
     // let parent = branch.substring(0, 7);
     for (let commit of data) {
-      let filePath = commit.after.split("#")[0].replaceAll(".", "/") + '.java';
+      let filePath = commit.after.split("#")[0];
       let methodName = commit.after.split("#")[1];
       methodName = methodName.substring(0, methodName.indexOf("("));
-      console.log("METHOD_NAME", methodName);
+      console.log("TD: METHOD_NAME", methodName);
+      console.log("TD: FILE_PATH", methodName);
       let commitIdHash = commit.commitId.substring(0, 7);
       let { changes, date, commitId, committer } = commit;
       let child = {
@@ -298,6 +313,7 @@ class TreeView {
 
   getDataFromAPI = async (data) => {
     const { username, reponame, filePath, commitId, methodName, lineNumber, evolution } = data;
+    console.log("TMEP FP", filePath);
     const params = `owner=${username}&repoName=${reponame}&filePath=${filePath}&commitId=${commitId}&methodName=${methodName}&lineNumber=${lineNumber}`;
     const getRequest = `${API_URL}/method?${params}`;
     console.log(getRequest);
@@ -488,8 +504,9 @@ class TreeView {
     const treeBody = "body > nav > div.octotree-views > div.octotree-view.octotree-tree-view.current > div.octotree-view-body";
 
     let margin = { top: 40, right: 5, bottom: 50, left: 5 },
-      width = 215 - margin.left - margin.right,
-      height = (this.nodeCount ? 70 * this.nodeCount : 550) - margin.top - margin.bottom;
+      width = 200 - margin.left - margin.right,
+      height = Math.max((this.nodeCount ? 50 * this.nodeCount : 0), 630) 
+      height = height - margin.top - margin.bottom;
     $(treeBody)[0].innerHTML = null;
     let svg = d3.select(treeBody).append("svg")
       .attr("id", "codetracker-svg")
@@ -715,7 +732,7 @@ class TreeView {
         let switchedName = methodName.substring(0, range[0]) + paramString.slice(0, paramString.length - 2) + ")";
         let fileDiv = getFileDivFromFilePath(filePath);
         const lineNumber = getLineNumberInnerText(fileDiv, switchedName);
-        const childData = await getDataFromAPI({ username, reponame, filePath, commitId, methodName: methodName.slice(0, range[0]).trim(), lineNumber, evolution: true });
+        const childData = await getDataFromAPI({ username, reponame, filePath: this.convertFilePathToJavaPath(filePath), commitId, methodName: methodName.slice(0, range[0]).trim(), lineNumber, evolution: true });
         return childData;
       }
 
