@@ -533,7 +533,7 @@ class TreeView {
     // Update
     const update = (source, data) => {
 
-      const { selectionText, nodeCount, getFileDivFromFilePath, getDataFromAPI } = data;
+      const { selectionText, nodeCount } = data;
 
       const redirectToCommitPage = async (event, d) => {
         const { username, reponame, commitId, filePath, methodName } = d.data;
@@ -709,12 +709,6 @@ class TreeView {
         return path;
       }
 
-      const getLineNumberInnerText = (document, methodName) => {
-        let textNode = $(document).find(`td:contains('${methodName}')`);
-        const index = textNode.length - 1;
-        return textNode[index].previousElementSibling.getAttribute("data-line-number");
-      }
-
       const getEvolutionHookData = async (node) => {
         const { username, reponame, filePath, commitId } = node.data;
         const change = node.data.changes[0];
@@ -730,9 +724,14 @@ class TreeView {
         })
         let paramString = params.reduce((pst, param) => pst + param + ", ", "(");
         let switchedName = methodName.substring(0, range[0]) + paramString.slice(0, paramString.length - 2) + ")";
-        let fileDiv = getFileDivFromFilePath(filePath);
-        const lineNumber = getLineNumberInnerText(fileDiv, switchedName);
-        const childData = await getDataFromAPI({ username, reponame, filePath: this.convertFilePathToJavaPath(filePath), commitId, methodName: methodName.slice(0, range[0]).trim(), lineNumber, evolution: true });
+        switchedName = switchedName.trim();
+        console.log(`Evolution Hook Data for: ${switchedName}`);
+        console.log(` In file: ${filePath}`);
+
+        let fileDiv = this.getFileDivFromFilePath(filePath);
+        const methodRow = this.getMethodRow(fileDiv, switchedName);
+        const lineNumber = $(methodRow.previousElementSibling).data("line-number");
+        const childData = await this.getDataFromAPI({ username, reponame, filePath: this.convertFilePathToJavaPath(filePath), commitId, methodName: methodName.slice(0, range[0]).trim(), lineNumber, evolution: true });
         return childData;
       }
 
@@ -761,7 +760,6 @@ class TreeView {
 
           while (current) {
             var obj = d3.hierarchy(current);
-            console.log("PARENT", parent);
             obj.parent = parent?.data?.commitId || parent.commitId;
             obj.depth = parent.depth + 1;
             obj.height = parent.height - 1;
@@ -796,7 +794,7 @@ class TreeView {
         <div>
         By <b>${d.data.committer}</b>, ${timeSince(d.data.date.split("T")[0])}
         <br/>
-        <p style="font-style: italics; margin-bottom: 15px;">${d.data.changes}</p>
+        <p style="font-style: italics; margin-bottom: 15px;">${d.data.changes.map((change)=>{return change.split("<").join("&lt;")})}</p>
         <b>${d.data.commitId}</b>
         </div>`;
 
@@ -834,8 +832,6 @@ class TreeView {
     update(root, {
       selectionText: this.selectionText,
       nodeCount: this.nodeCount,
-      getFileDivFromFilePath: this.getFileDivFromFilePath,
-      getDataFromAPI: this.getDataFromAPI,
     });
 
   }
