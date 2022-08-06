@@ -98,85 +98,117 @@ class TreeView {
 
   // get filediv when span is not available
   getFileDivFromFilePath = (filePath) => {
-    let textNodes = $(document).find(`div`)
-      .contents().filter(
+    let textNodes = $(document).find(`div.file.js-file.js-details-container.js-targetable-element`)
+      console.log("SCANNED_FILE_DIVS", textNodes);
+      textNodes = textNodes.filter(
         function () {
-          return this.nodeType == 1
-            && this.getAttribute("data-tagsearch-path") == filePath;
+          let matched =  $(this).data("tagsearch-path") === filePath;
+          if (matched){
+            console.log("TAG_PATH", $(this).data("tagsearch-path"), filePath)
+          }
+          return matched;
         });
+      
     return textNodes[0];
   }
 
-  getMethodSpan = (document, methodName) => {
-    let textNodes = $(document).find(`span:contains('${methodName}')`)
+  getMethodRow = (fileDiv, methodName) => {
+    let tds = $(`#${fileDiv.getAttribute('id')} td.js-file-line`)
+    console.log("ALL_TDS", tds.length);
+    tds = tds
       .filter(
         function () {
-          return this.nodeType == 1
-            && this.textContent == methodName;
+          return $(this).text().includes(methodName);
         });
-    return textNodes[textNodes.length - 1];
+      console.log(tds);
+    return tds[tds.length - 1]
   };
 
-  expandArrows = (node) => {
-    let arrows = $(node).find("a.js-expand");
-    for (let arrow of arrows) {
-      arrow.click()
+  expandAll = async (node) => {
+    let diffNotLoaded = $(node).text().includes("Load diff");
+    if (diffNotLoaded){
+      console.log("DIFF UNLOADED")
+      node.children[1].children[0].children[0].children[1].children[1].click();
+      await sleep(1000);
     }
-    return arrows;
+    try{
+      let expandAllButton = node.children[0].children[0].children[1].children[0];
+      if (expandAllButton.type == "button"){
+        expandAllButton.click();
+        console.log("BUTTON EXPANDED", expandAllButton);
+      } else {
+        throw "No expand all button";
+      }
+    } catch (err){
+      console.log(err);
+      let singleArrows = $(node).find("a.js-expand");
+      let seen = new Set();
+      let clicked;
+      while (singleArrows){
+        clicked = false;
+        for (let singleArrow of singleArrows){
+          let rightRange = $(singleArrow).data("right-range");
+          if (!seen.has(rightRange) ){
+            singleArrow.click();
+            clicked = true;
+            seen.add(rightRange);
+          }
+        }
+        if (!clicked){
+          break;
+        }
+        await sleep(500);
+        singleArrows = $(node).find("a.js-expand");
+        console.log("SINGLE_ARROWS", singleArrows);
+      }
+    }
+    await sleep(1000);
   }
 
   // scrolling main function
-  scrollToCodeElement(filePath, methodName) {
+  async scrollToCodeElement(filePath, methodName) {
+    console.log("Scrolling to method " + methodName + " in " + filePath);
     let counter = 0;
 
-    const scrollAgainAndTry = () => {
-      setTimeout(
-        () => {
-          window.scrollTo(0, document.body.scrollHeight);
-          if (!span) {
-            span = this.getMethodSpan(this.$document, methodName);
-          }
-          if (!fileDiv) {
-            fileDiv = this.getFileDivFromDOM(span);
-            if (!fileDiv) {
-              fileDiv = this.getFileDivFromFilePath(filePath);
-            }
-          }
-          this.expandArrows(fileDiv);
+    const scrollAgainAndTry = async () => {
+      console.log("SCROLLING TO LOAD: ", counter);
+      window.scrollTo(0, document.body.scrollHeight);
+      await sleep(3000);
+      if (!fileDiv) {
+        fileDiv = this.getFileDivFromFilePath(filePath);
+      }
 
-          // if span or filediv were not found, scroll more
-          if ((!span || !fileDiv) && counter < 5) {
-            counter += 1;
-            scrollAgainAndTry();
-          } else {
-            highlightLine(span, fileDiv);
-          }
-        }, 1000
-      );
+      // if span or filediv were not found, scroll more
+      if ((!fileDiv) && counter < 5) {
+        counter += 1;
+        await scrollAgainAndTry();
+      }
+
     }
 
-    const highlightLine = (span, fileDiv) => {
-      if (span && fileDiv.getAttribute("data-tagsearch-path") == filePath) {
-        let diffHash = span.parentElement.parentElement.previousElementSibling.getAttribute("id");
-        if (!diffHash) {
-          diffHash = span.parentElement.previousElementSibling.getAttribute("id");
-        }
-        window.location = window.location + "#" + diffHash;
+    const highlightLine = (methodRow) => {
+      if (methodRow){
+        console.log("HIGHLIGHT", methodName);
+        let diffHash = methodRow.previousElementSibling.getAttribute("id");
+        window.location = window.location.toString().split("#")[0] + "#" + diffHash;
+      } else {
+        console.log("ERROR: Method row is missing.")
       }
     }
 
-    let span = this.getMethodSpan(this.$document, methodName);
-    let fileDiv = this.getFileDivFromDOM(span);
+    let fileDiv = this.getFileDivFromFilePath(filePath);
 
     if (!fileDiv) {
-      fileDiv = this.getFileDivFromFilePath(filePath);
+      await scrollAgainAndTry();
     }
+    console.log("FILE_DIV", fileDiv);
 
-    if (!span || !fileDiv) {
-      scrollAgainAndTry();
-    }
+    await this.expandAll(fileDiv);
 
-    highlightLine(span, fileDiv);
+    let methodRow = this.getMethodRow(fileDiv, methodName);
+    console.log("METHOD_ROW", methodRow);
+    highlightLine(methodRow);
+
     return;
   }
 
@@ -184,8 +216,8 @@ class TreeView {
     $(document).trigger(EVENT.REPO_LOADED, { repo });
     this._showHeader(repo);
     await this.restoreTreeData();
-    if (!window.location.toString().includes("#") && this.sessionMethodName) {
-      this.scrollToCodeElement(this.sessionFilePath, this.sessionMethodName);
+    if (this.sessionMethodName) {
+      await this.scrollToCodeElement(this.sessionFilePath, this.sessionMethodName);
     }
     console.log("TreeData is now", this.treeData);
     if (this.treeData.commitId) {
@@ -210,7 +242,7 @@ class TreeView {
     let treeData = root["children"];
     // let { branch } = currentNode;
     data = data.reverse();
-    if (evolution){
+    if (evolution) {
       this.nodeCount += data.length;
     } else {
       this.nodeCount = data.length;
@@ -220,7 +252,9 @@ class TreeView {
     // let parent = branch.substring(0, 7);
     for (let commit of data) {
       let filePath = commit.after.split("#")[0].replaceAll(".", "/") + '.java';
-      let methodName = commit.after.split("#")[1].slice(0, -2)
+      let methodName = commit.after.split("#")[1];
+      methodName = methodName.substring(0, methodName.indexOf("("));
+      console.log("METHOD_NAME", methodName);
       let commitIdHash = commit.commitId.substring(0, 7);
       let { changes, date, commitId, committer } = commit;
       let child = {
@@ -455,7 +489,7 @@ class TreeView {
 
     let margin = { top: 40, right: 5, bottom: 50, left: 5 },
       width = 215 - margin.left - margin.right,
-      height = (this.nodeCount ? 55 * this.nodeCount : 550) - margin.top - margin.bottom;
+      height = (this.nodeCount ? 70 * this.nodeCount : 550) - margin.top - margin.bottom;
     $(treeBody)[0].innerHTML = null;
     let svg = d3.select(treeBody).append("svg")
       .attr("id", "codetracker-svg")
@@ -481,7 +515,7 @@ class TreeView {
 
     // Update
     const update = (source, data) => {
-      
+
       const { selectionText, nodeCount, getFileDivFromFilePath, getDataFromAPI } = data;
 
       const redirectToCommitPage = async (event, d) => {
@@ -522,7 +556,7 @@ class TreeView {
       }
 
       let toolTip = d3.select(treeBody).append("div").attr("class", "treeToolTip");
-      
+
       // maps the node data to the tree layout
       var treeDataMap = treemap(root);
       // Compute the new tree layout.
@@ -692,16 +726,17 @@ class TreeView {
           let selected = d;
           let childRoot = [];
           let childArray = childRoot;
+
           let parent = selected;
           let current = evoHookData;
 
-          if (current.commitId == selected.data.commitId){
+          if (current.commitId == selected.data.commitId) {
             current = current["children"][0]
           }
 
           // add the children to the treedata obj
           let iter = this.treeData;
-          while(iter && iter.commitId !== selected.data.commitId){
+          while (iter && iter.commitId !== selected.data.commitId) {
             iter = iter.children[0];
           }
 
@@ -709,13 +744,14 @@ class TreeView {
 
           while (current) {
             var obj = d3.hierarchy(current);
-            obj.parent = parent.data.commitId;
+            console.log("PARENT", parent);
+            obj.parent = parent?.data?.commitId || parent.commitId;
             obj.depth = parent.depth + 1;
             obj.height = parent.height - 1;
-            
+
             obj.children = [];
             obj._children = null;
-            
+
             childArray.push(obj);
 
             childArray = obj.children;
