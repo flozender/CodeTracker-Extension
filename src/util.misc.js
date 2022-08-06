@@ -50,7 +50,14 @@ const lineOf = (text, substring) => {
   return -1;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 window.isSafari = isSafari;
 window.isValidTimeStamp = isValidTimeStamp;
 window.timeSince = timeSince;
 window.lineOf = lineOf;
+window.sleep = sleep;
