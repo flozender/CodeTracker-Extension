@@ -38,6 +38,7 @@ class TreeView {
       // capture methodname and filepath here
       this.sessionFilePath = await window.extStore.get(window.STORE.FILE_PATH);
       this.sessionMethodName = await window.extStore.get(window.STORE.METHOD_NAME);
+      this.sessionLineNumber = await window.extStore.get(window.STORE.LINE_NUMBER);
       this.nodeCount = await window.extStore.get(window.STORE.NODE_COUNT);
     }
     catch (err) {
@@ -52,20 +53,9 @@ class TreeView {
     return textNode[index].parentElement.previousElementSibling.getAttribute("data-line-number");
   };
 
-  convertFilePathToJavaPath = (filePath) => {
-    return filePath.replaceAll(".", "/") + '.java';
-  }
-
-  convertFilePathToPackagePath = (filePath) => {
-    let splitPath = filePath.split(".");
-    let source = splitPath[0].slice(0, splitPath[0].lastIndexOf("/"));
-    let packagePath = source + "/" + splitPath[splitPath.length - 1] + ".java";
-    return packagePath;
-  }
-
   getLineNumberFromAPI = async (data) => {
     const { username, reponame, filePath, commitId, methodName } = data;
-    let url = `https://api.github.com/repos/${username}/${reponame}/contents/${this.convertFilePathToJavaPath(filePath)}?ref=${commitId}`;
+    let url = `https://api.github.com/repos/${username}/${reponame}/contents/${filePath}?ref=${commitId}`;
     console.log("GETTING ", url);
     let response = await fetch(url).then(response => response.json());
     let content = atob(response.content);
@@ -110,12 +100,10 @@ class TreeView {
   // get filediv when span is not available
   getFileDivFromFilePath = (filePath) => {
     let textNodes = $(document).find(`div.file.js-file.js-details-container.js-targetable-element`);
-    let javaFilePath = this.convertFilePathToJavaPath(filePath);
-    let packageFilePath = this.convertFilePathToPackagePath(filePath);
 
     textNodes = textNodes.filter(
       function () {
-        let matched = $(this).data("tagsearch-path") === javaFilePath || $(this).data("tagsearch-path") == packageFilePath;
+        let matched = $(this).data("tagsearch-path") === filePath
         return matched;
       });
 
@@ -174,7 +162,7 @@ class TreeView {
   }
 
   // scrolling main function
-  async scrollToCodeElement(filePath, methodName) {
+  async scrollToCodeElement(filePath, methodName, lineNumber) {
     console.log("Scrolling to method " + methodName + " in " + filePath);
     let counter = 0;
 
@@ -194,15 +182,14 @@ class TreeView {
 
     }
 
-    const highlightLine = (methodRow, fallbackHash) => {
-      let diffHash;
-      if (methodRow) {
-        console.log("HIGHLIGHT", methodName);
-        diffHash = methodRow.previousElementSibling.getAttribute("id");
-      } else {
-        console.log("ERROR: Method row is missing.")
-        window.location = window.location.toString().split("#")[0] + "#" + diffHash;
-        diffHash = fallbackHash;
+    const highlightLine = (fileDiv, lineNumber) => {
+      let diffHash = $(fileDiv).attr("id");
+      let noTextDiv = $(fileDiv).text().includes("File renamed without changes.")
+
+      console.log("NO TEXT", noTextDiv);
+      console.log("HIGHLIGHT", lineNumber);
+      if (!noTextDiv) {
+        diffHash = diffHash + "R" + lineNumber;
       }
       window.location = window.location.toString().split("#")[0] + "#" + diffHash;
     }
@@ -214,13 +201,15 @@ class TreeView {
     if (!fileDiv && !lineSelected) {
       await scrollAgainAndTry();
     }
+
     console.log("FILE_DIV", fileDiv);
+    console.log("LINE_NUMBER", lineNumber);
 
     await this.expandAll(fileDiv);
 
-    let methodRow = this.getMethodRow(fileDiv, methodName);
-    console.log("METHOD_ROW", methodRow);
-    highlightLine(methodRow, $(fileDiv).attr("id"));
+    // let methodRow = this.getMethodRow(fileDiv, methodName);
+    // console.log("METHOD_ROW", methodRow);
+    highlightLine(fileDiv, lineNumber);
 
     return;
   }
@@ -231,7 +220,7 @@ class TreeView {
     await this.restoreTreeData();
 
     if (this.sessionMethodName) {
-      await this.scrollToCodeElement(this.sessionFilePath, this.sessionMethodName);
+      await this.scrollToCodeElement(this.sessionFilePath, this.sessionMethodName, this.sessionLineNumber);
     }
     console.log("TreeData is now", this.treeData);
     if (this.treeData.commitId) {
@@ -240,15 +229,6 @@ class TreeView {
       this._initialScreen()
     }
     $(this).trigger(EVENT.VIEW_READY);
-  }
-
-  isExpandable = (changes) => {
-    for (let change of changes) {
-      if (change.includes("introduced: Extract Method")) {
-        return true;
-      }
-    }
-    return false;
   }
 
   transformDataForTree = (data, username, reponame, evolution) => {
@@ -265,8 +245,11 @@ class TreeView {
     // check if current commit has a refactoring, if not add a dummy checkpoint node
     // let parent = branch.substring(0, 7);
     for (let commit of data) {
-      let filePath = commit.after.split("#")[0];
+      let filePath = commit.afterPath;
+      let lineNumber = commit.afterLine;
       let methodName = commit.after.split("#")[1];
+      let { evolutionHook, evolutionHookLine, evolutionHookPath } = commit;
+      console.log( { evolutionHook, evolutionHookLine, evolutionHookPath } );
       methodName = methodName.substring(0, methodName.indexOf("("));
       console.log("TD: METHOD_NAME", methodName);
       console.log("TD: FILE_PATH", methodName);
@@ -280,11 +263,14 @@ class TreeView {
         committer,
         parent,
         filePath,
+        lineNumber,
         methodName,
         username,
         reponame,
         children: [],
-        isExpandable: this.isExpandable(changes)
+        evolutionHook, 
+        evolutionHookLine, 
+        evolutionHookPath
       }
       treeData.push(child);
       treeData = child['children'];
@@ -312,6 +298,8 @@ class TreeView {
   };
 
   getDataFromAPI = async (data) => {
+    this._removeTreeBody();
+    $(document).trigger(EVENT.REQ_START);
     const { username, reponame, filePath, commitId, methodName, lineNumber, evolution } = data;
     console.log("TMEP FP", filePath);
     const params = `owner=${username}&repoName=${reponame}&filePath=${filePath}&commitId=${commitId}&methodName=${methodName}&lineNumber=${lineNumber}`;
@@ -322,6 +310,7 @@ class TreeView {
       .then(response => response.json());
 
     let transformedTreeData = this.transformDataForTree(treeData, username, reponame, evolution);
+    $(document).trigger(EVENT.REQ_END);
     return transformedTreeData;
   }
 
@@ -380,6 +369,7 @@ class TreeView {
         await window.extStore.set(window.STORE.SELECTION_TEXT, null);
         await window.extStore.set(window.STORE.FILE_PATH, null);
         await window.extStore.set(window.STORE.METHOD_NAME, null);
+        await window.extStore.set(window.STORE.LINE_NUMBER, 0);
         await window.extStore.set(window.STORE.NODE_COUNT, 0);
         this.$document.trigger(EVENT.REQ_END);
         const currentUrl = window.location.toString();
@@ -505,8 +495,8 @@ class TreeView {
 
     let margin = { top: 40, right: 5, bottom: 50, left: 5 },
       width = 200 - margin.left - margin.right,
-      height = Math.max((this.nodeCount ? 50 * this.nodeCount : 0), 630) 
-      height = height - margin.top - margin.bottom;
+      height = Math.max((this.nodeCount ? this.nodeCount * 53 : 0), 630)
+    height = height - margin.top - margin.bottom;
     $(treeBody)[0].innerHTML = null;
     let svg = d3.select(treeBody).append("svg")
       .attr("id", "codetracker-svg")
@@ -536,7 +526,7 @@ class TreeView {
       const { selectionText, nodeCount } = data;
 
       const redirectToCommitPage = async (event, d) => {
-        const { username, reponame, commitId, filePath, methodName } = d.data;
+        const { username, reponame, commitId, filePath, methodName, lineNumber } = d.data;
         let url = `https://github.com/${username}/${reponame}/commit/${commitId}`;
         console.log(url);
 
@@ -545,6 +535,7 @@ class TreeView {
         await window.extStore.set(window.STORE.SELECTION_TEXT, selectionText);
         await window.extStore.set(window.STORE.FILE_PATH, filePath);
         await window.extStore.set(window.STORE.METHOD_NAME, methodName);
+        await window.extStore.set(window.STORE.LINE_NUMBER, lineNumber);
         await window.extStore.set(window.STORE.NODE_COUNT, nodeCount);
 
         window.location = url;
@@ -553,7 +544,7 @@ class TreeView {
 
       const fillNode = (d, hover) => {
         const currentPage = repo.branch === d.data.commitId;
-        if (currentPage && d.data.isExpandable) {
+        if (currentPage && d.data.evolutionHook) {
           return "rgba(245, 240, 173)";
         }
         if (d._children) {
@@ -562,7 +553,7 @@ class TreeView {
         if (currentPage) {
           return "#ccffcf";
         }
-        if (hover && d.data.isExpandable) {
+        if (hover && d.data.evolutionHook) {
           return "rgba(245, 240, 173)";
         }
         if (hover) {
@@ -589,7 +580,7 @@ class TreeView {
       let nodeEnter = node
         .enter().append("g")
         .attr("class", function (d) {
-          return "node node--internal" + (repo.branch === d.data.commitId ? " node--active" : "") + (d.data.isExpandable ? " node--expandable" : "");
+          return "node node--internal" + (repo.branch === d.data.commitId ? " node--active" : "") + (d.data.evolutionHook ? " node--expandable" : "");
         })
         .attr("transform", function (d) {
           return "translate(" + source.x0 + "," + source.y0 + ")";
@@ -710,34 +701,17 @@ class TreeView {
       }
 
       const getEvolutionHookData = async (node) => {
-        const { username, reponame, filePath, commitId } = node.data;
-        const change = node.data.changes[0];
-        let startIndex = change.indexOf("extracted from") + 15;
-        let endIndex = change.lastIndexOf(" : ");
-        let methodName = change.substring(startIndex, endIndex);
-        methodName = methodName.slice(methodName.indexOf(" "))
-        let range = [methodName.indexOf("("), methodName.indexOf(")")]
-        let params = methodName.substring(range[0] + 1, range[1]).split(",");
-        params = params.map((param) => {
-          let p = param.split(" ");
-          return p[1] + " " + p[0];
-        })
-        let paramString = params.reduce((pst, param) => pst + param + ", ", "(");
-        let switchedName = methodName.substring(0, range[0]) + paramString.slice(0, paramString.length - 2) + ")";
-        switchedName = switchedName.trim();
-        console.log(`Evolution Hook Data for: ${switchedName}`);
-        console.log(` In file: ${filePath}`);
-
-        let fileDiv = this.getFileDivFromFilePath(filePath);
-        const methodRow = this.getMethodRow(fileDiv, switchedName);
-        const lineNumber = $(methodRow.previousElementSibling).data("line-number");
-        const childData = await this.getDataFromAPI({ username, reponame, filePath: this.convertFilePathToJavaPath(filePath), commitId, methodName: methodName.slice(0, range[0]).trim(), lineNumber, evolution: true });
+        const { username, reponame, commitId, evolutionHook, evolutionHookPath, evolutionHookLine } = node.data;
+        let methodName = evolutionHook.split("#")[1];
+        methodName = methodName.substring(0, methodName.indexOf("("));
+        console.log(`Evolution Hook Data for: ${methodName} in file ${evolutionHookPath} at line ${evolutionHookLine}`);
+        const childData = await this.getDataFromAPI({ username, reponame, filePath: evolutionHookPath, commitId, methodName, lineNumber: evolutionHookLine, evolution: true });
         return childData;
       }
 
       // Toggle children on click
       const rightClick = async (event, d) => {
-        if (d.data.isExpandable && !d.children && !d._children) {
+        if (d.data.evolutionHook && !d.children && !d._children) {
           let evoHookData = await getEvolutionHookData(d);
           let selected = d;
           let childRoot = [];
@@ -794,7 +768,7 @@ class TreeView {
         <div>
         By <b>${d.data.committer}</b>, ${timeSince(d.data.date.split("T")[0])}
         <br/>
-        <p style="font-style: italics; margin-bottom: 15px;">${d.data.changes.map((change)=>{return change.split("<").join("&lt;")})}</p>
+        <p style="font-style: italics; margin-bottom: 15px;">${d.data.changes.map((change) => { return change.split("<").join("&lt;") })}</p>
         <b>${d.data.commitId}</b>
         </div>`;
 

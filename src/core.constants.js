@@ -20,6 +20,7 @@ const STORE = {
   FILE_PATH: 'octotree.filepath',
   TREE_DATA: 'octotree.tree_data',
   METHOD_NAME: 'octotree.method_name',
+  LINE_NUMBER: 'octotree.line_number',
   NODE_COUNT: 'octotree.node_count'
 };
 
@@ -39,6 +40,7 @@ const DEFAULTS = {
   FILE_PATH: '',
   TREE_DATA: {},
   METHOD_NAME: "",
+  LINE_NUMBER: 0,
   NODE_COUNT: 0
 };
 
