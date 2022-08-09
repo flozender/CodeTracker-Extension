@@ -19,7 +19,7 @@ const STORE = {
   SELECTION_TEXT: 'octotree.selection_text',
   FILE_PATH: 'octotree.filepath',
   TREE_DATA: 'octotree.tree_data',
-  METHOD_NAME: 'octotree.method_name',
+  SELECTION: 'octotree.selection',
   LINE_NUMBER: 'octotree.line_number',
   NODE_COUNT: 'octotree.node_count'
 };
@@ -39,7 +39,7 @@ const DEFAULTS = {
   SELECTION_TEXT: "",
   FILE_PATH: '',
   TREE_DATA: {},
-  METHOD_NAME: "",
+  SELECTION: "",
   LINE_NUMBER: 0,
   NODE_COUNT: 0
 };

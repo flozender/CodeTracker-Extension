@@ -4,16 +4,18 @@ class TreeView {
     this.adapter = adapter;
     this.selectionText;
     this.lineNumber;
+    this.parentMethod;
+    this.parentMethodLine;
     this.filePath;
     this.nodeCount;
     this.evoHookData;
-
+    this.expandedSet = new Set();
     this.$view = $dom.find('.octotree-tree-view');
     this.$document = $(document);
 
     // restore session
     this.sessionFilePath;
-    this.sessionMethodName;
+    this.sessionSelection;
   }
 
   get $jstree() {
@@ -37,7 +39,7 @@ class TreeView {
       }
       // capture methodname and filepath here
       this.sessionFilePath = await window.extStore.get(window.STORE.FILE_PATH);
-      this.sessionMethodName = await window.extStore.get(window.STORE.METHOD_NAME);
+      this.sessionSelection = await window.extStore.get(window.STORE.SELECTION);
       this.sessionLineNumber = await window.extStore.get(window.STORE.LINE_NUMBER);
       this.nodeCount = await window.extStore.get(window.STORE.NODE_COUNT);
     }
@@ -45,23 +47,6 @@ class TreeView {
       console.log("No session", err);
     }
   }
-
-  // scrolling helper functions
-  getLineNumberFromDOM = (document, methodName) => {
-    let textNode = $(document).find(`span:contains('${methodName}')`);
-    const index = textNode.length - 2;
-    return textNode[index].parentElement.previousElementSibling.getAttribute("data-line-number");
-  };
-
-  getLineNumberFromAPI = async (data) => {
-    const { username, reponame, filePath, commitId, methodName } = data;
-    let url = `https://api.github.com/repos/${username}/${reponame}/contents/${filePath}?ref=${commitId}`;
-    console.log("GETTING ", url);
-    let response = await fetch(url).then(response => response.json());
-    let content = atob(response.content);
-    let lineNumber = lineOf(content, methodName);
-    return lineNumber;
-  };
 
   // linenumber of the user selection
   getLineNumberFromDOM_GET = (node) => {
@@ -77,6 +62,34 @@ class TreeView {
     }
 
     return lineNumber;
+  }
+
+  getParentMethodFromDOM_GET = async (node) => {
+    let tr = node.parentElement.parentElement.parentElement;
+    let textContent;
+    let parentMethod;
+    let parentMethodLine;
+    let methodRegex = /(public|protected|private|static|\s) +[\w\<\>\[\]]+\s+(\w+) *\([^\)]*\) *(\{?|[^;])/;
+    while(true){
+      let length = tr.children.length-1;
+      textContent = tr.children[length].textContent.trim();
+      let matched = textContent.match(methodRegex);
+      let isExpandable = $(tr).find('td:first-child:has(a)');
+      if(isExpandable.length > 0){
+        tr = tr.nextElementSibling;
+        isExpandable[0].children[0].click();
+        matched = false;
+        await sleep(500);
+      }
+      if (matched){
+        parentMethod = matched[2];
+        parentMethodLine = $(tr.children[length-1]).data("line-number");
+        console.log("Matched regex ", parentMethod, parentMethodLine)
+        break;
+      }
+      tr = tr.previousElementSibling;
+    }
+    return [parentMethod, parentMethodLine];
   }
 
   // filepath div of the user selection
@@ -110,12 +123,12 @@ class TreeView {
     return textNodes[0];
   }
 
-  getMethodRow = (fileDiv, methodName) => {
+  getMethodRow = (fileDiv, selection) => {
     let tds = $(`#${fileDiv.getAttribute('id')} td.js-file-line`)
     tds = tds
       .filter(
         function () {
-          return $(this).text().includes(methodName);
+          return $(this).text().includes(selection);
         });
     return tds[tds.length - 1]
   };
@@ -158,12 +171,12 @@ class TreeView {
         console.log("SINGLE_ARROWS", singleArrows);
       }
     }
-    await sleep(700);
+    await sleep(600);
   }
 
   // scrolling main function
-  async scrollToCodeElement(filePath, methodName, lineNumber) {
-    console.log("Scrolling to method " + methodName + " in " + filePath);
+  async scrollToCodeElement(filePath, lineNumber) {
+    console.log("Scrolling to line " + lineNumber + " in " + filePath);
     let counter = 0;
 
     const scrollAgainAndTry = async () => {
@@ -207,7 +220,7 @@ class TreeView {
 
     await this.expandAll(fileDiv);
 
-    // let methodRow = this.getMethodRow(fileDiv, methodName);
+    // let methodRow = this.getMethodRow(fileDiv, name);
     // console.log("METHOD_ROW", methodRow);
     highlightLine(fileDiv, lineNumber);
 
@@ -219,8 +232,8 @@ class TreeView {
     this._showHeader(repo);
     await this.restoreTreeData();
 
-    if (this.sessionMethodName) {
-      await this.scrollToCodeElement(this.sessionFilePath, this.sessionMethodName, this.sessionLineNumber);
+    if (this.sessionSelection) {
+      await this.scrollToCodeElement(this.sessionFilePath, this.sessionLineNumber);
     }
     console.log("TreeData is now", this.treeData);
     if (this.treeData.commitId) {
@@ -247,12 +260,12 @@ class TreeView {
     for (let commit of data) {
       let filePath = commit.afterPath;
       let lineNumber = commit.afterLine;
-      let methodName = commit.after.split("#")[1];
+      let selection = commit.after;
       let { evolutionHook, evolutionHookLine, evolutionHookPath } = commit;
       console.log( { evolutionHook, evolutionHookLine, evolutionHookPath } );
-      methodName = methodName.substring(0, methodName.indexOf("("));
-      console.log("TD: METHOD_NAME", methodName);
-      console.log("TD: FILE_PATH", methodName);
+      selection = selection.substring(0, selection.indexOf("("));
+      console.log("TD: selection", selection);
+      console.log("TD: FILE_PATH", filePath);
       let commitIdHash = commit.commitId.substring(0, 7);
       let { changes, date, commitId, committer } = commit;
       let child = {
@@ -264,7 +277,7 @@ class TreeView {
         parent,
         filePath,
         lineNumber,
-        methodName,
+        selection,
         username,
         reponame,
         children: [],
@@ -277,22 +290,6 @@ class TreeView {
       parent = commitId;
     }
 
-    // const currentCommitNode = {
-    //   name: branch.substring(0, 7),
-    //   changes: ["CodeTracker: Initialized on this commit"],
-    //   date: $(document).find(`relative-time`)[0].getAttribute("datetime"),
-    //   commitId: branch,
-    //   committer: $(document).find('.commit-author')[0].innerHTML,
-    //   parent: "null",
-    //   filePath: currentNode.filePath,
-    //   methodName: currentNode.methodName,
-    //   username,
-    //   reponame,
-    //   children: [root.children[0]]
-    // }
-    // console.log(currentCommitNode);
-    // return currentCommitNode;
-
     console.log(root.children[0]);
     return root.children[0];
   };
@@ -300,10 +297,12 @@ class TreeView {
   getDataFromAPI = async (data) => {
     this._removeTreeBody();
     $(document).trigger(EVENT.REQ_START);
-    const { username, reponame, filePath, commitId, methodName, lineNumber, evolution } = data;
-    console.log("TMEP FP", filePath);
-    const params = `owner=${username}&repoName=${reponame}&filePath=${filePath}&commitId=${commitId}&methodName=${methodName}&lineNumber=${lineNumber}`;
-    const getRequest = `${API_URL}/method?${params}`;
+    const { username, reponame, filePath, commitId, selection, lineNumber, evolution, parentMethod, parentMethodLine } = data;
+    let params = `owner=${username}&repoName=${reponame}&filePath=${filePath}&commitId=${commitId}&selection=${selection}&lineNumber=${lineNumber}`;
+    if (parentMethod){
+      params = params + `&parentMethod=${parentMethod}&parentMethodLine=${parentMethodLine}`;
+    }
+    const getRequest = `${API_URL}/track?${params}`;
     console.log(getRequest);
 
     let treeData = await fetch(getRequest)
@@ -356,7 +355,9 @@ class TreeView {
         let selectionText = this.selectionText;
         let filePath = this.filePath;
         let lineNumber = this.lineNumber;
-        this.treeData = await this.getDataFromAPI({ username, reponame, filePath, commitId: branch, methodName: selectionText, lineNumber });
+        let parentMethod = this.parentMethod;
+        let parentMethodLine = this.parentMethodLine;
+        this.treeData = await this.getDataFromAPI({ username, reponame, filePath, commitId: branch, selection: selectionText, lineNumber, parentMethod, parentMethodLine });
 
         this.drawTree(repo);
         this.$document.trigger(EVENT.REQ_END);
@@ -368,7 +369,7 @@ class TreeView {
         await window.extStore.set(window.STORE.TREE_DATA, {});
         await window.extStore.set(window.STORE.SELECTION_TEXT, null);
         await window.extStore.set(window.STORE.FILE_PATH, null);
-        await window.extStore.set(window.STORE.METHOD_NAME, null);
+        await window.extStore.set(window.STORE.SELECTION, null);
         await window.extStore.set(window.STORE.LINE_NUMBER, 0);
         await window.extStore.set(window.STORE.NODE_COUNT, 0);
         this.$document.trigger(EVENT.REQ_END);
@@ -376,22 +377,29 @@ class TreeView {
         window.location = currentUrl.split("#")[0];
       })
 
-    document.addEventListener('click', () => {
-      captureSelection();
+    document.addEventListener('click', async () => {
+      await captureSelection();
     });
 
-    const captureSelection = () => {
+    const captureSelection = async () => {
       let selection = document.getSelection();
+
       let selectionText = selection.toString().trim();
       if (selectionText !== "") {
         this.selectionText = selectionText;
         this.updateCodeElementSelectionField(selectionText);
+        
+        let fileDiv = this.getFileDivFromDOM(selection.anchorNode.parentElement);
 
-        let filePath = this.getFilePathFromDOM_GET(selection.anchorNode.parentElement);
-        this.filePath = filePath;
+        this.filePath = $(fileDiv).data("tagsearch-path");
 
         let lineNumber = this.getLineNumberFromDOM_GET(selection.anchorNode.parentElement);
         this.lineNumber = lineNumber;
+        
+        let [parentMethod, parentMethodLine] = await this.getParentMethodFromDOM_GET(selection.anchorNode.parentElement);
+        this.parentMethod = parentMethod;
+        this.parentMethodLine = parentMethodLine;
+        selection.anchorNode.parentElement.scrollIntoView({behavior: "smooth", block: "center", inline: "nearest"});
       }
     }
   }
@@ -526,7 +534,7 @@ class TreeView {
       const { selectionText, nodeCount } = data;
 
       const redirectToCommitPage = async (event, d) => {
-        const { username, reponame, commitId, filePath, methodName, lineNumber } = d.data;
+        const { username, reponame, commitId, filePath, selection, lineNumber } = d.data;
         let url = `https://github.com/${username}/${reponame}/commit/${commitId}`;
         console.log(url);
 
@@ -534,7 +542,7 @@ class TreeView {
         await window.extStore.set(window.STORE.TREE_DATA, this.treeData);
         await window.extStore.set(window.STORE.SELECTION_TEXT, selectionText);
         await window.extStore.set(window.STORE.FILE_PATH, filePath);
-        await window.extStore.set(window.STORE.METHOD_NAME, methodName);
+        await window.extStore.set(window.STORE.SELECTION, selection);
         await window.extStore.set(window.STORE.LINE_NUMBER, lineNumber);
         await window.extStore.set(window.STORE.NODE_COUNT, nodeCount);
 
@@ -702,10 +710,10 @@ class TreeView {
 
       const getEvolutionHookData = async (node) => {
         const { username, reponame, commitId, evolutionHook, evolutionHookPath, evolutionHookLine } = node.data;
-        let methodName = evolutionHook.split("#")[1];
-        methodName = methodName.substring(0, methodName.indexOf("("));
-        console.log(`Evolution Hook Data for: ${methodName} in file ${evolutionHookPath} at line ${evolutionHookLine}`);
-        const childData = await this.getDataFromAPI({ username, reponame, filePath: evolutionHookPath, commitId, methodName, lineNumber: evolutionHookLine, evolution: true });
+        let parentMethod = evolutionHook.split("#")[1];
+        parentMethod = parentMethod.substring(0, parentMethod.indexOf("("));
+        console.log(`Evolution Hook Data for: ${parentMethod} in file ${evolutionHookPath} at line ${evolutionHookLine}`);
+        const childData = await this.getDataFromAPI({ username, reponame, filePath: evolutionHookPath, commitId, selection: parentMethod, lineNumber: evolutionHookLine, evolution: true });
         return childData;
       }
 
