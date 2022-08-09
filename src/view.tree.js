@@ -65,7 +65,7 @@ class TreeView {
   }
 
   getParentMethodFromDOM_GET = async (node) => {
-    let tr = node.parentElement.parentElement.parentElement;
+    let tr = node.parentElement.parentElement;
     let textContent;
     let parentMethod;
     let parentMethodLine;
@@ -87,7 +87,11 @@ class TreeView {
         console.log("Matched regex ", parentMethod, parentMethodLine)
         break;
       }
-      tr = tr.previousElementSibling;
+      try {
+        tr = tr.previousElementSibling;
+      } catch(e) {
+        break;
+      }
     }
     return [parentMethod, parentMethodLine];
   }
