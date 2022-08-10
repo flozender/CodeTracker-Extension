@@ -9,7 +9,7 @@ class TreeView {
     this.filePath;
     this.nodeCount;
     this.evoHookData;
-    this.expandedSet = new Set();
+    this.githubCommitMode = window.location.toString().split("/")[5] === "commit";
     this.$view = $dom.find('.octotree-tree-view');
     this.$document = $(document);
 
@@ -65,13 +65,16 @@ class TreeView {
   }
 
   getParentMethodFromDOM_GET = async (node) => {
-    let tr = node.parentElement.parentElement;
+    let tr = node;
+    while(tr.tagName !== "TR"){
+      tr = tr.parentElement;
+    }
     let textContent;
     let parentMethod;
     let parentMethodLine;
     let methodRegex = /(public|protected|private|static|\s) +[\w\<\>\[\]]+\s+(\w+) *\([^\)]*\) *(\{?|[^;])/;
-    while(true){
-      let length = tr.children.length-1;
+    while(true && !!tr){
+      let length = Math.max(0, tr.children.length-1);
       textContent = tr.children[length].textContent.trim();
       let matched = textContent.match(methodRegex);
       let isExpandable = $(tr).find('td:first-child:has(a)');
@@ -137,12 +140,12 @@ class TreeView {
     return tds[tds.length - 1]
   };
 
-  expandAll = async (node) => {
+  expandAll = async (node, repo) => {
     let diffNotLoaded = $(node).text().includes("Load diff");
     if (diffNotLoaded) {
       console.log("DIFF UNLOADED")
       node.children[1].children[0].children[0].children[1].children[1].click();
-      await sleep(1000);
+      await sleep(1300);
     }
     try {
       let expandAllButton = node.children[0].children[0].children[1].children[0];
@@ -153,43 +156,38 @@ class TreeView {
         throw "No expand all button";
       }
     } catch (err) {
-      console.log(err);
-      let singleArrows = $(node).find("a.js-expand");
-      let seen = new Set();
-      let clicked;
-      while (singleArrows) {
-        clicked = false;
-        for (let singleArrow of singleArrows) {
-          let rightRange = $(singleArrow).data("right-range");
-          if (!seen.has(rightRange)) {
-            singleArrow.click();
-            clicked = true;
-            seen.add(rightRange);
-          }
-        }
-        if (!clicked) {
-          break;
-        }
-        await sleep(500);
-        singleArrows = $(node).find("a.js-expand");
-        console.log("SINGLE_ARROWS", singleArrows);
-      }
+      console.log("Creating expand button");
+      let tbody = $(node).find("tbody")
+      let [tag, params] = $(tbody[0].children[0].children[0].children[0]).data("url").split("?");
+      tag = tag.split("/")[4]
+      params = new URLSearchParams(params);
+      const data = { ...repo, tag, anchor: $(node).attr("id"), mode: params.get("mode"), filePath: encodeURIComponent($(node).data("tagsearch-path")) }
+      let button = addExpandButton(data);
+      let buttonDiv = node.children[0].children[0];
+      let diffSpan = buttonDiv.children[0].nextSibling;
+      console.log(button);
+      console.log(diffSpan);
+      buttonDiv.insertBefore(button, diffSpan);
+      console.log(buttonDiv.children[1]);
+      buttonDiv.children[1].children[0].click();
     }
     await sleep(600);
   }
 
   // scrolling main function
-  async scrollToCodeElement(filePath, lineNumber) {
+  async scrollToCodeElement(filePath, lineNumber, repo) {
     console.log("Scrolling to line " + lineNumber + " in " + filePath);
     let counter = 0;
 
     const scrollAgainAndTry = async () => {
       console.log("SCROLLING TO LOAD: ", counter);
       window.scrollTo(0, document.body.scrollHeight);
-      await sleep(1500);
+      await sleep(1000);
       if (!fileDiv) {
         fileDiv = this.getFileDivFromFilePath(filePath);
       }
+      // wait for table to load
+      await sleep(500);
 
       // if span or filediv were not found, scroll more
       if ((!fileDiv) && counter < 5) {
@@ -222,7 +220,7 @@ class TreeView {
     console.log("FILE_DIV", fileDiv);
     console.log("LINE_NUMBER", lineNumber);
 
-    await this.expandAll(fileDiv);
+    await this.expandAll(fileDiv, repo);
 
     // let methodRow = this.getMethodRow(fileDiv, name);
     // console.log("METHOD_ROW", methodRow);
@@ -236,8 +234,8 @@ class TreeView {
     this._showHeader(repo);
     await this.restoreTreeData();
 
-    if (this.sessionSelection) {
-      await this.scrollToCodeElement(this.sessionFilePath, this.sessionLineNumber);
+    if (this.sessionSelection && this.githubCommitMode) {
+      await this.scrollToCodeElement(this.sessionFilePath, this.sessionLineNumber, repo);
     }
     console.log("TreeData is now", this.treeData);
     if (this.treeData.commitId) {
@@ -381,15 +379,20 @@ class TreeView {
         window.location = currentUrl.split("#")[0];
       })
 
-    document.addEventListener('click', async () => {
+    document.addEventListener('mouseup', async () => {
       await captureSelection();
+      
     });
 
     const captureSelection = async () => {
       let selection = document.getSelection();
 
       let selectionText = selection.toString().trim();
-      if (selectionText !== "") {
+      if (selectionText === "") {
+        return;
+      }
+        this._removeTreeBody();
+
         this.selectionText = selectionText;
         this.updateCodeElementSelectionField(selectionText);
         
@@ -404,7 +407,6 @@ class TreeView {
         this.parentMethod = parentMethod;
         this.parentMethodLine = parentMethodLine;
         selection.anchorNode.parentElement.scrollIntoView({behavior: "smooth", block: "center", inline: "nearest"});
-      }
     }
   }
 
