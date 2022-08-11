@@ -11,6 +11,7 @@ module.exports = {
             `--disable-extensions-except=${CRX_PATH}`,
             `--load-extension=${CRX_PATH}`
         ],
+        defaultViewport: null,
     },
     browserContext: 'default',
 }

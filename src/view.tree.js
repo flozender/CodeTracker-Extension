@@ -61,6 +61,12 @@ class TreeView {
       } catch (err) { }
     }
 
+    if (!lineNumber) {
+      try {
+        lineNumber = node.previousElementSibling.getAttribute("data-line-number");
+      } catch (err) { }
+    }
+
     return lineNumber;
   }
 
@@ -354,6 +360,9 @@ class TreeView {
         this.$document.trigger(EVENT.REQ_START);
 
         const { username, reponame, branch } = repo;
+        if (!this.selectionText){
+          await captureSelection();
+        }
         let selectionText = this.selectionText;
         let filePath = this.filePath;
         let lineNumber = this.lineNumber;
@@ -379,16 +388,17 @@ class TreeView {
         window.location = currentUrl.split("#")[0];
       })
 
-    document.addEventListener('mouseup', async () => {
+    document.addEventListener('click', async () => {
       await captureSelection();
-      
     });
 
     const captureSelection = async () => {
       let selection = document.getSelection();
-
       let selectionText = selection.toString().trim();
       if (selectionText === "") {
+        return;
+      }
+      if (selectionText === this.selectionText){
         return;
       }
         this._removeTreeBody();
@@ -397,12 +407,10 @@ class TreeView {
         this.updateCodeElementSelectionField(selectionText);
         
         let fileDiv = this.getFileDivFromDOM(selection.anchorNode.parentElement);
-
         this.filePath = $(fileDiv).data("tagsearch-path");
 
         let lineNumber = this.getLineNumberFromDOM_GET(selection.anchorNode.parentElement);
         this.lineNumber = lineNumber;
-        
         let [parentMethod, parentMethodLine] = await this.getParentMethodFromDOM_GET(selection.anchorNode.parentElement);
         this.parentMethod = parentMethod;
         this.parentMethodLine = parentMethodLine;
@@ -541,7 +549,7 @@ class TreeView {
 
       const redirectToCommitPage = async (event, d) => {
         const { username, reponame, commitId, filePath, selection, lineNumber } = d.data;
-        let url = `https://github.com/${username}/${reponame}/commit/${commitId}`;
+        let url = `https://github.com/${username}/${reponame}/commit/${commitId}?diff=split`;
         console.log(url);
 
         // store all info to storage for next page
