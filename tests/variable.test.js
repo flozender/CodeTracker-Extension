@@ -12,7 +12,7 @@ let CHANGES = file.expectedChanges;
 
 jest.setTimeout(15000);
 
-describe('Track Variables', () => {
+describe('Track variables', () => {
 
     beforeAll(async () => {
 
@@ -171,11 +171,13 @@ describe('Track Variables', () => {
     });
 
     it('should highlight the correct line', async () => {
-        await page.waitForTimeout(100);
+        await page.waitForNavigation();
+        await page.waitForTimeout(1000);
 
         await expect(await page.content()).toContain("selected-line");
         let correctLineSelected = await page.evaluate((VARIABLE_NAME) => {
-            let td = document.querySelectorAll("td.selected-line-top.selected-line-bottom")[3];
+            let td = document.querySelectorAll("td.selected-line-top.selected-line-bottom");
+            td = td[td.length-1];
             if (td.textContent.includes(VARIABLE_NAME)) {
                 return true;
             }

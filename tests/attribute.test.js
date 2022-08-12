@@ -1,19 +1,19 @@
 // await jestPuppeteer.debug();
 const puppeteer = require("puppeteer");
-const { blue, cyan, green, magenta, red, yellow } = require('colorette')
+const { blue, cyan, green, magenta, red, yellow } = require('colorette');
 
-let file = require("./oracle/method/training/checkstyle-Checker-fireErrors.json");
+let file = require("./oracle/attribute/training/checkstyle-Checker-basedir.json");
 let URL = file.repositoryWebURL.replace(".git", "/blob/" + file.startCommitId + "/" + file.filePath);
-let FUNCTION_NAME = file.functionName;
-let START_LINE = file.functionStartLine;
+let ATTRIBUTE_NAME = file.attributeName;
+let START_LINE = file.attributeDeclarationLine;
 let CHANGES = file.expectedChanges;
 
 jest.setTimeout(15000);
 
-describe('Track methods', () => {
+describe('Track attributes', () => {
 
     beforeAll(async () => {
-        await page.goto(`${URL}`, {waitUntil: 'networkidle2'});
+        await page.goto(`${URL}`, { waitUntil: 'networkidle2' });
 
         let loadExtension = async () => {
             const pathToExtension = require('path').join(__dirname, '../tmp/chrome');
@@ -37,66 +37,68 @@ describe('Track methods', () => {
         await pinButton.evaluate(b => b.click());
         await page.waitForTimeout(500);
         page
-          .on('console', message => {
-            const type = message.type().substr(0, 3).toUpperCase()
-            const colors = {
-              LOG: text => text,
-              ERR: red,
-              WAR: yellow,
-              INF: cyan
-            }
-            const color = colors[type] || blue
-            console.log(color(`${type} ${message.text()}`))
-          })
-        //   .on('pageerror', ({ message }) => console.log(red(message)))
-        //   .on('response', response =>
-        //     console.log(green(`${response.status()} ${response.url()}`)))
-        //   .on('requestfailed', request =>
-        //     console.log(magenta(`${request.failure().errorText} ${request.url()}`)))
+            .on('console', message => {
+                const type = message.type().substr(0, 3).toUpperCase()
+                const colors = {
+                    LOG: text => text,
+                    ERR: red,
+                    WAR: yellow,
+                    INF: cyan
+                }
+                const color = colors[type] || blue
+                console.log(color(`${type} ${message.text()}`))
+            })
     });
 
 
-    it('should select the method', async () => {
+    it('should select the attribute', async () => {
+
         await page.waitForTimeout(500);
         await expect(page.content()).resolves.toContain('codeElementField');
         let codeElementField = await page.$("#codeElementField");
 
-        await page.evaluate(async (START_LINE) => {
-            let i = 0;
+        await page.evaluate(async (START_LINE, ATTRIBUTE_NAME) => {
             const SelectText = (element) => {
-                let doc = document, text = doc.querySelectorAll(element), range, selection;
+                let doc = document, range, selection;
 
                 if (doc.body.createTextRange) {
                     range = document.body.createTextRange();
-                    range.moveToElementText(text[i]);
+                    range.moveToElementText(element);
                     range.select();
                 } else if (window.getSelection) {
                     selection = window.getSelection();
                     range = document.createRange();
-                    range.selectNodeContents(text[i]);
+                    range.selectNodeContents(element);
                     selection.removeAllRanges();
                     selection.addRange(range);
                 }
-                i++;
-                if (i === text.length) i = 0;
+
             };
-            await SelectText(`#LC${START_LINE} > span.pl-en`);
+            let td = document.querySelectorAll(`#LC${START_LINE}`);
+            let spans = td[0].children;
+            let attributeSpan;
+            for (let i = 0; i < spans.length; i++) {
+                if (spans[i].innerText === ATTRIBUTE_NAME) {
+                    attributeSpan = spans[i];
+                    break;
+                }
+            }
+            await SelectText(attributeSpan);
             return true;
-        }, START_LINE);
+        }, START_LINE, ATTRIBUTE_NAME);
 
         let trackButton = await page.$("#codeElementSubmit")
         await trackButton.evaluate(b => b.click());
         await page.waitForTimeout(500);
 
-
         await expect(await page.evaluate(() => {
             const selection = document.getSelection();
             let selectionText = selection.toString().trim();
             return selectionText;
-        })).toEqual(FUNCTION_NAME);
+        })).toEqual(ATTRIBUTE_NAME);
 
         let codeElementText = await codeElementField.evaluate((c) => c.value);
-        await expect(codeElementText === FUNCTION_NAME).toBeTruthy();
+        await expect(codeElementText === ATTRIBUTE_NAME).toBeTruthy();
     });
 
     it('should load the change history', async () => {
@@ -124,35 +126,38 @@ describe('Track methods', () => {
         await page.waitForResponse(response => response.status() === 200);
         await page.waitForNavigation();
         await page.waitForTimeout(500);
-        await expect(await page.evaluate(()=>{
+        await expect(await page.evaluate(() => {
             return window.location.toString();
         })).toContain(commitId);
     });
 
-    it('should highlight the correct line', async()=>{
+    it('should highlight the correct line', async () => {
         await page.waitForNavigation();
+        // let filesButton = await page.waitForSelector("#show-file-tree-button");
+        // await filesButton.evaluate((b)=>b.click());
+        // let diffButton = await page.waitForSelector("#toc > div.d-flex.d-inline-block > form > div > button.selected.btn-sm.btn.BtnGroup-item");
+        // await diffButton.click();
         await page.waitForTimeout(1000);
-        
         await expect(await page.content()).toContain("selected-line");
-        let correctLineSelected = await page.evaluate((FUNCTION_NAME)=>{
-            let td = document.querySelectorAll("td.selected-line.selected-line-top.selected-line-bottom");
+        let correctLineSelected = await page.evaluate((ATTRIBUTE_NAME) => {
+            let td = document.querySelectorAll("td.selected-line-top.selected-line-bottom");
             td = td[td.length-1];
-            if (td.textContent.includes(FUNCTION_NAME)){
+            if (td.textContent.includes(ATTRIBUTE_NAME)) {
                 return true;
             }
             let tr = td.parentElement;
-            while(!!tr){
-                if (tr.children.length > 0){
-                    let length = Math.max(0, tr.children.length-1);
+            while (!!tr) {
+                if (tr.children.length > 0) {
+                    let length = Math.max(0, tr.children.length - 1);
                     let textContent = tr.children[length].textContent.trim();
-                    if(textContent.includes(FUNCTION_NAME)){
+                    if (textContent.includes(ATTRIBUTE_NAME)) {
                         return true;
                     }
                 }
                 tr = tr.nextElementSibling;
             }
             return false;
-        }, FUNCTION_NAME);
+        }, ATTRIBUTE_NAME);
 
         await expect(correctLineSelected).toBeTruthy();
     })

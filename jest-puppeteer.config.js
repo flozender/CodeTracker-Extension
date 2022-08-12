@@ -9,7 +9,7 @@ module.exports = {
         product: 'chrome',
         args: [
             `--disable-extensions-except=${CRX_PATH}`,
-            `--load-extension=${CRX_PATH}`
+            `--load-extension=${CRX_PATH}`,
         ],
         defaultViewport: null,
     },
