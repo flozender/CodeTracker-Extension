@@ -1,20 +1,54 @@
 // await jestPuppeteer.debug();
 const puppeteer = require("puppeteer");
-const { blue, cyan, green, magenta, red, yellow } = require('colorette')
+const { blue, cyan, green, magenta, red, yellow } = require('colorette');
 
-let file = require("./oracle/method/training/checkstyle-Checker-fireErrors.json");
+let file = require("./oracle/variable/training/checkstyle-Checker-fireErrors-element.json");
 let URL = file.repositoryWebURL.replace(".git", "/blob/" + file.startCommitId + "/" + file.filePath);
-let FUNCTION_NAME = file.functionName;
-let START_LINE = file.functionStartLine;
+let VARIABLE_NAME = file.variableName;
+let START_LINE = file.variableStartLine;
 let CHANGES = file.expectedChanges;
+
+
 
 jest.setTimeout(15000);
 
-describe('Track Methods', () => {
+describe('Track Variables', () => {
 
     beforeAll(async () => {
-        await page.goto(`${URL}`, {waitUntil: 'networkidle2'});
 
+        // const listenPageErrors = async (page) => {
+        //     // make args accessible
+        //     const describe = (jsHandle) => {
+        //         return jsHandle.executionContext().evaluate((obj) => {
+        //             // serialize |obj| however you want
+        //             return `OBJ: ${typeof obj}, ${obj}`;
+        //         }, jsHandle);
+        //     }
+
+        //     const colors = {
+        //         LOG: green,
+        //         ERR: red,
+        //         WAR: yellow,
+        //         INF: cyan,
+        //     };
+
+        //     // listen to browser console there
+        //     await page.on('console', async (message) => {
+        //         const args = await Promise.all(message.args().map(arg => describe(arg)));
+        //         // make ability to paint different console[types]
+        //         const type = message.type().substr(0, 3).toUpperCase();
+        //         const color = colors[type] || chalk.blue;
+        //         let text = '';
+        //         for (let i = 0; i < args.length; ++i) {
+        //             text += `[${i}] ${args[i]} `;
+        //         }
+        //         console.log(color(`CONSOLE.${type}: ${message.text()}\n${text} `));
+        //     });
+        // }
+        // await listenPageErrors(page); 
+        await page.goto(`${URL}`, { waitUntil: 'networkidle2' });
+
+        // await page.addScriptTag({path: './libs/jquery.js'}) 
         let loadExtension = async () => {
             const pathToExtension = require('path').join(__dirname, '../tmp/chrome');
             const browser = await puppeteer.launch({
@@ -37,17 +71,17 @@ describe('Track Methods', () => {
         await pinButton.evaluate(b => b.click());
         await page.waitForTimeout(500);
         page
-          .on('console', message => {
-            const type = message.type().substr(0, 3).toUpperCase()
-            const colors = {
-              LOG: text => text,
-              ERR: red,
-              WAR: yellow,
-              INF: cyan
-            }
-            const color = colors[type] || blue
-            console.log(color(`${type} ${message.text()}`))
-          })
+            .on('console', message => {
+                const type = message.type().substr(0, 3).toUpperCase()
+                const colors = {
+                    LOG: text => text,
+                    ERR: red,
+                    WAR: yellow,
+                    INF: cyan
+                }
+                const color = colors[type] || blue
+                console.log(color(`${type} ${message.text()}`))
+            })
         //   .on('pageerror', ({ message }) => console.log(red(message)))
         //   .on('response', response =>
         //     console.log(green(`${response.status()} ${response.url()}`)))
@@ -56,47 +90,54 @@ describe('Track Methods', () => {
     });
 
 
-    it('should select the method', async () => {
+    it('should select the variable', async () => {
+
         await page.waitForTimeout(500);
         await expect(page.content()).resolves.toContain('codeElementField');
         let codeElementField = await page.$("#codeElementField");
 
-        await page.evaluate(async (START_LINE) => {
-            let i = 0;
+        await page.evaluate(async (START_LINE, VARIABLE_NAME) => {
             const SelectText = (element) => {
-                let doc = document, text = doc.querySelectorAll(element), range, selection;
+                let doc = document, range, selection;
 
                 if (doc.body.createTextRange) {
                     range = document.body.createTextRange();
-                    range.moveToElementText(text[i]);
+                    range.moveToElementText(element);
                     range.select();
                 } else if (window.getSelection) {
                     selection = window.getSelection();
                     range = document.createRange();
-                    range.selectNodeContents(text[i]);
+                    range.selectNodeContents(element);
                     selection.removeAllRanges();
                     selection.addRange(range);
                 }
-                i++;
-                if (i === text.length) i = 0;
+
             };
-            await SelectText(`#LC${START_LINE} > span.pl-en`);
+            let td = document.querySelectorAll(`#LC${START_LINE}`);
+            let spans = td[0].children;
+            let variableSpan;
+            for (let i = 0; i < spans.length; i++) {
+                if (spans[i].innerText === VARIABLE_NAME) {
+                    variableSpan = spans[i];
+                    break;
+                }
+            }
+            await SelectText(variableSpan);
             return true;
-        }, START_LINE);
+        }, START_LINE, VARIABLE_NAME);
 
         let trackButton = await page.$("#codeElementSubmit")
         await trackButton.evaluate(b => b.click());
         await page.waitForTimeout(500);
 
-
         await expect(await page.evaluate(() => {
             const selection = document.getSelection();
             let selectionText = selection.toString().trim();
             return selectionText;
-        })).toEqual(FUNCTION_NAME);
+        })).toEqual(VARIABLE_NAME);
 
         let codeElementText = await codeElementField.evaluate((c) => c.value);
-        await expect(codeElementText === FUNCTION_NAME).toBeTruthy();
+        await expect(codeElementText === VARIABLE_NAME).toBeTruthy();
     });
 
     it('should load the change history', async () => {
@@ -124,33 +165,33 @@ describe('Track Methods', () => {
         await page.waitForResponse(response => response.status() === 200);
         await page.waitForNavigation();
         await page.waitForTimeout(500);
-        await expect(await page.evaluate(()=>{
+        await expect(await page.evaluate(() => {
             return window.location.toString();
         })).toContain(commitId);
     });
 
-    it('should highlight the correct line', async()=>{
-        await page.waitForTimeout(1000);
-        
+    it('should highlight the correct line', async () => {
+        await page.waitForTimeout(100);
+
         await expect(await page.content()).toContain("selected-line");
-        let correctLineSelected = await page.evaluate((FUNCTION_NAME)=>{
-            let td = document.querySelectorAll("td.selected-line.selected-line-top.selected-line-bottom")[3];
-            if (td.textContent.includes(FUNCTION_NAME)){
+        let correctLineSelected = await page.evaluate((VARIABLE_NAME) => {
+            let td = document.querySelectorAll("td.selected-line-top.selected-line-bottom")[3];
+            if (td.textContent.includes(VARIABLE_NAME)) {
                 return true;
             }
             let tr = td.parentElement;
-            while(!!tr){
-                if (tr.children.length > 0){
-                    let length = Math.max(0, tr.children.length-1);
+            while (!!tr) {
+                if (tr.children.length > 0) {
+                    let length = Math.max(0, tr.children.length - 1);
                     let textContent = tr.children[length].textContent.trim();
-                    if(textContent.includes(FUNCTION_NAME)){
+                    if (textContent.includes(VARIABLE_NAME)) {
                         return true;
                     }
                 }
                 tr = tr.nextElementSibling;
             }
             return false;
-        }, FUNCTION_NAME);
+        }, VARIABLE_NAME);
 
         await expect(correctLineSelected).toBeTruthy();
     })
