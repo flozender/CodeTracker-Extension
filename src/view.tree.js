@@ -27,7 +27,7 @@ class TreeView {
 
   updateCodeElementSelectionField(selectionText) {
     document.getElementById("codeElementField").value = selectionText;
-    this._removeTreeBody();
+    // this._removeTreeBody();
   }
 
   async restoreTreeData() {
@@ -72,33 +72,33 @@ class TreeView {
 
   getParentMethodFromDOM_GET = async (node) => {
     let tr = node;
-    while(tr.tagName !== "TR"){
+    while (tr.tagName !== "TR") {
       tr = tr.parentElement;
     }
     let textContent;
     let parentMethod;
     let parentMethodLine;
     let methodRegex = /(public|protected|private|static|\s) +[\w\<\>\[\]]+\s+(\w+) *\([^\)]*\) *(\{?|[^;])/;
-    while(true && !!tr){
-      let length = Math.max(0, tr.children.length-1);
+    while (true && !!tr) {
+      let length = Math.max(0, tr.children.length - 1);
       textContent = tr.children[length].textContent.trim();
       let matched = textContent.match(methodRegex);
       let isExpandable = $(tr).find('td:first-child:has(a)');
-      if(isExpandable.length > 0){
+      if (isExpandable.length > 0) {
         tr = tr.nextElementSibling;
         isExpandable[0].children[0].click();
         matched = false;
         await sleep(500);
       }
-      if (matched){
+      if (matched) {
         parentMethod = matched[2];
-        parentMethodLine = $(tr.children[length-1]).data("line-number");
+        parentMethodLine = $(tr.children[length - 1]).data("line-number");
         console.log("Matched regex ", parentMethod, parentMethodLine)
         break;
       }
       try {
         tr = tr.previousElementSibling;
-      } catch(e) {
+      } catch (e) {
         break;
       }
     }
@@ -148,6 +148,7 @@ class TreeView {
 
   expandAll = async (node, repo) => {
     let diffNotLoaded = $(node).text().includes("Load diff");
+    let diffRenamed = $(node).text().includes("File renamed without changes.");
     if (diffNotLoaded) {
       console.log("DIFF UNLOADED")
       node.children[1].children[0].children[0].children[1].children[1].click();
@@ -158,7 +159,10 @@ class TreeView {
       if (expandAllButton.type == "button") {
         expandAllButton.click();
         console.log("BUTTON EXPANDED", expandAllButton);
-      } else {
+      } else if (diffRenamed) {
+        console.log("No body changes.");
+      }
+      else {
         throw "No expand all button";
       }
     } catch (err) {
@@ -270,7 +274,7 @@ class TreeView {
       let lineNumber = commit.afterLine;
       let selection = commit.after;
       let { evolutionHook, evolutionHookLine, evolutionHookPath } = commit;
-      console.log( { evolutionHook, evolutionHookLine, evolutionHookPath } );
+      console.log({ evolutionHook, evolutionHookLine, evolutionHookPath });
       selection = selection.substring(0, selection.indexOf("("));
       console.log("TD: selection", selection);
       console.log("TD: FILE_PATH", filePath);
@@ -289,8 +293,8 @@ class TreeView {
         username,
         reponame,
         children: [],
-        evolutionHook, 
-        evolutionHookLine, 
+        evolutionHook,
+        evolutionHookLine,
         evolutionHookPath
       }
       treeData.push(child);
@@ -307,7 +311,7 @@ class TreeView {
     $(document).trigger(EVENT.REQ_START);
     const { username, reponame, filePath, commitId, selection, lineNumber, evolution, parentMethod, parentMethodLine } = data;
     let params = `owner=${username}&repoName=${reponame}&filePath=${filePath}&commitId=${commitId}&selection=${selection}&lineNumber=${lineNumber}`;
-    if (parentMethod){
+    if (parentMethod) {
       params = params + `&parentMethod=${parentMethod}&parentMethodLine=${parentMethodLine}`;
     }
     const getRequest = `${API_URL}/track?${params}`;
@@ -360,7 +364,7 @@ class TreeView {
         this.$document.trigger(EVENT.REQ_START);
 
         const { username, reponame, branch } = repo;
-        if (!this.selectionText){
+        if (!this.selectionText) {
           await captureSelection();
         }
         let selectionText = this.selectionText;
@@ -398,23 +402,23 @@ class TreeView {
       if (selectionText === "") {
         return;
       }
-      if (selectionText === this.selectionText){
-        return;
-      }
-        this._removeTreeBody();
+      // if (selectionText === this.selectionText){
+      //   return;
+      // }
+      // this._removeTreeBody();
 
-        this.selectionText = selectionText;
-        this.updateCodeElementSelectionField(selectionText);
-        
-        let fileDiv = this.getFileDivFromDOM(selection.anchorNode.parentElement);
-        this.filePath = $(fileDiv).data("tagsearch-path");
+      this.selectionText = selectionText;
+      this.updateCodeElementSelectionField(selectionText);
 
-        let lineNumber = this.getLineNumberFromDOM_GET(selection.anchorNode.parentElement);
-        this.lineNumber = lineNumber;
-        let [parentMethod, parentMethodLine] = await this.getParentMethodFromDOM_GET(selection.anchorNode.parentElement);
-        this.parentMethod = parentMethod;
-        this.parentMethodLine = parentMethodLine;
-        selection.anchorNode.parentElement.scrollIntoView({behavior: "smooth", block: "center", inline: "nearest"});
+      let fileDiv = this.getFileDivFromDOM(selection.anchorNode.parentElement);
+      this.filePath = $(fileDiv).data("tagsearch-path");
+
+      let lineNumber = this.getLineNumberFromDOM_GET(selection.anchorNode.parentElement);
+      this.lineNumber = lineNumber;
+      let [parentMethod, parentMethodLine] = await this.getParentMethodFromDOM_GET(selection.anchorNode.parentElement);
+      this.parentMethod = parentMethod;
+      this.parentMethodLine = parentMethodLine;
+      selection.anchorNode.parentElement.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
     }
   }
 

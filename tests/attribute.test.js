@@ -36,18 +36,18 @@ describe('Track attributes', () => {
         let pinButton = await page.$("body > nav > div.octotree-main-icons > a.octotree-pin")
         await pinButton.evaluate(b => b.click());
         await page.waitForTimeout(500);
-        page
-            .on('console', message => {
-                const type = message.type().substr(0, 3).toUpperCase()
-                const colors = {
-                    LOG: text => text,
-                    ERR: red,
-                    WAR: yellow,
-                    INF: cyan
-                }
-                const color = colors[type] || blue
-                console.log(color(`${type} ${message.text()}`))
-            })
+        // page
+        //     .on('console', message => {
+        //         const type = message.type().substr(0, 3).toUpperCase()
+        //         const colors = {
+        //             LOG: text => text,
+        //             ERR: red,
+        //             WAR: yellow,
+        //             INF: cyan
+        //         }
+        //         const color = colors[type] || blue
+        //         console.log(color(`${type} ${message.text()}`))
+        //     })
     });
 
 
