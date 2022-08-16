@@ -12,7 +12,7 @@ class TreeView {
     this.githubCommitMode = window.location.toString().split("/")[5] === "commit";
     this.$view = $dom.find('.octotree-tree-view');
     this.$document = $(document);
-
+    this.selectionType;
     // restore session
     this.sessionFilePath;
     this.sessionSelection;
@@ -27,15 +27,42 @@ class TreeView {
 
   updateCodeElementSelectionField(selectionText) {
     document.getElementById("codeElementField").value = selectionText;
-    // this._removeTreeBody();
+    if(selectionText){
+      this.enableTrackButton();
+    } else {
+      this.disableTrackButton();
+    }
+  }
+
+  disableTrackButton() {
+    $("#codeElementSubmit").attr("disabled", true);
+  }
+  enableTrackButton() {
+    $("#codeElementSubmit").attr("disabled", false);
+  }
+
+  updateCodeElementLabel(type) {
+    let label = "Selected "
+    if (type !== "Invalid Element") {
+      label += type;
+      $("#codeElementLabel").removeClass("invalid-element").addClass("valid-element")
+    } else {
+      label = "Unsupported code element"
+      $("#codeElementLabel").removeClass("valid-element").addClass("invalid-element")
+    }
+    $("#codeElementLabel").text(label);
   }
 
   async restoreTreeData() {
     try {
       this.treeData = await window.extStore.get(window.STORE.TREE_DATA);
       this.selectionText = await window.extStore.get(window.STORE.SELECTION_TEXT);
+      this.selectionType = await window.extStore.get(window.STORE.SELECTION_TYPE);
       if (this.selectionText) {
         this.updateCodeElementSelectionField(this.selectionText);
+      }
+      if (this.selectionType) {
+        this.updateCodeElementLabel(this.selectionType);
       }
       // capture methodname and filepath here
       this.sessionFilePath = await window.extStore.get(window.STORE.FILE_PATH);
@@ -168,18 +195,22 @@ class TreeView {
     } catch (err) {
       console.log("Creating expand button");
       let tbody = $(node).find("tbody")
-      let [tag, params] = $(tbody[0].children[0].children[0].children[0]).data("url").split("?");
-      tag = tag.split("/")[4]
-      params = new URLSearchParams(params);
-      const data = { ...repo, tag, anchor: $(node).attr("id"), mode: params.get("mode"), filePath: encodeURIComponent($(node).data("tagsearch-path")) }
-      let button = addExpandButton(data);
-      let buttonDiv = node.children[0].children[0];
-      let diffSpan = buttonDiv.children[0].nextSibling;
-      console.log(button);
-      console.log(diffSpan);
-      buttonDiv.insertBefore(button, diffSpan);
-      console.log(buttonDiv.children[1]);
-      buttonDiv.children[1].children[0].click();
+      try {
+        let [tag, params] = $(tbody[0].children[0].children[0].children[0]).data("url").split("?");
+        tag = tag.split("/")[4]
+        params = new URLSearchParams(params);
+        const data = { ...repo, tag, anchor: $(node).attr("id"), mode: params.get("mode"), filePath: encodeURIComponent($(node).data("tagsearch-path")) }
+        let button = addExpandButton(data);
+        let buttonDiv = node.children[0].children[0];
+        let diffSpan = buttonDiv.children[0].nextSibling;
+        console.log(button);
+        console.log(diffSpan);
+        buttonDiv.insertBefore(button, diffSpan);
+        console.log(buttonDiv.children[1]);
+        buttonDiv.children[1].children[0].click();
+      } catch (err) {
+        console.log("Couldn't create expand button");
+      };
     }
     await sleep(600);
   }
@@ -306,6 +337,17 @@ class TreeView {
     return root.children[0];
   };
 
+  getCodeElementType = async (data) => {
+    const { username, reponame, filePath, commitId, selection, lineNumber } = data;
+    let params = `owner=${username}&repoName=${reponame}&filePath=${filePath}&commitId=${commitId}&selection=${selection}&lineNumber=${lineNumber}`;
+    const getRequest = `${API_URL}/codeElementType?${params}`;
+    let response = await fetch(getRequest)
+      .then(response => response.json());
+    let codeElementType = response.type;
+    console.log(codeElementType);
+    return codeElementType;
+  }
+
   getDataFromAPI = async (data) => {
     this._removeTreeBody();
     $(document).trigger(EVENT.REQ_START);
@@ -342,11 +384,11 @@ class TreeView {
             ${deXss((repo.displayBranch || repo.branch).toString())}
           </div>
           <div class="octotree-header-selection">
-            <label class="selection-text">Selected Code Element</label>
+            <label id="codeElementLabel" class="selection-text">Highlight to select text</label>
             <input id="codeElementField" type="text" class="form-control input-block selection-field" readonly/>
           </div>
           <div>
-            <button id="codeElementSubmit" class="btn btn-primary octotree-submit-button">Track</button>
+            <button id="codeElementSubmit" class="btn btn-primary octotree-submit-button" disabled>Track</button>
             <button id="codeElementReset" class="btn btn-secondary octotree-submit-button">Reset</button>
           </div>
         </div>`
@@ -383,6 +425,7 @@ class TreeView {
         this._initialScreen();
         await window.extStore.set(window.STORE.TREE_DATA, {});
         await window.extStore.set(window.STORE.SELECTION_TEXT, null);
+        await window.extStore.set(window.STORE.SELECTION_TYPE, null);
         await window.extStore.set(window.STORE.FILE_PATH, null);
         await window.extStore.set(window.STORE.SELECTION, null);
         await window.extStore.set(window.STORE.LINE_NUMBER, 0);
@@ -402,13 +445,8 @@ class TreeView {
       if (selectionText === "") {
         return;
       }
-      // if (selectionText === this.selectionText){
-      //   return;
-      // }
-      // this._removeTreeBody();
 
       this.selectionText = selectionText;
-      this.updateCodeElementSelectionField(selectionText);
 
       let fileDiv = this.getFileDivFromDOM(selection.anchorNode.parentElement);
       this.filePath = $(fileDiv).data("tagsearch-path");
@@ -419,6 +457,16 @@ class TreeView {
       this.parentMethod = parentMethod;
       this.parentMethodLine = parentMethodLine;
       selection.anchorNode.parentElement.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+
+      const { username, reponame, branch } = repo;
+      let filePath = this.filePath;
+      this.selectionType = await this.getCodeElementType({ username, reponame, filePath, commitId: branch, selection: selectionText, lineNumber });
+      this.updateCodeElementLabel(this.selectionType);
+      if (this.selectionType !== "Invalid Element") {
+        this.updateCodeElementSelectionField(selectionText);
+      } else {
+        this.updateCodeElementSelectionField(null);
+      }
     }
   }
 
@@ -559,6 +607,7 @@ class TreeView {
         // store all info to storage for next page
         await window.extStore.set(window.STORE.TREE_DATA, this.treeData);
         await window.extStore.set(window.STORE.SELECTION_TEXT, selectionText);
+        await window.extStore.set(window.STORE.SELECTION_TYPE, this.selectionType);
         await window.extStore.set(window.STORE.FILE_PATH, filePath);
         await window.extStore.set(window.STORE.SELECTION, selection);
         await window.extStore.set(window.STORE.LINE_NUMBER, lineNumber);
