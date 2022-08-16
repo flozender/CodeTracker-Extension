@@ -87,6 +87,11 @@ describe('Track attributes', () => {
             return true;
         }, START_LINE, ATTRIBUTE_NAME);
 
+        let label = await page.$("#codeElementLabel")
+        await label.evaluate(b => b.click());
+
+        await page.waitForResponse(response => response.status() === 200);
+
         let trackButton = await page.$("#codeElementSubmit")
         await trackButton.evaluate(b => b.click());
         await page.waitForTimeout(500);
@@ -139,25 +144,11 @@ describe('Track attributes', () => {
         // await diffButton.click();
         await page.waitForTimeout(1000);
         await expect(await page.content()).toContain("selected-line");
-        let correctLineSelected = await page.evaluate((ATTRIBUTE_NAME) => {
-            let td = document.querySelectorAll("td.selected-line-top.selected-line-bottom");
-            td = td[td.length-1];
-            if (td.textContent.includes(ATTRIBUTE_NAME)) {
-                return true;
-            }
-            let tr = td.parentElement;
-            while (!!tr) {
-                if (tr.children.length > 0) {
-                    let length = Math.max(0, tr.children.length - 1);
-                    let textContent = tr.children[length].textContent.trim();
-                    if (textContent.includes(ATTRIBUTE_NAME)) {
-                        return true;
-                    }
-                }
-                tr = tr.nextElementSibling;
-            }
-            return false;
-        }, ATTRIBUTE_NAME);
+        attributeName = CHANGES[0].elementNameAfter;
+        lineNumber = attributeName.slice(attributeName.lastIndexOf("(") + 1, attributeName.lastIndexOf(")"))
+        let correctLineSelected = await page.evaluate((lineNumber) => {
+            return window.location.toString().endsWith(`R${lineNumber}`);
+        }, lineNumber);
 
         await expect(correctLineSelected).toBeTruthy();
     })

@@ -84,6 +84,11 @@ describe('Track methods', () => {
             return true;
         }, START_LINE);
 
+        let label = await page.$("#codeElementLabel")
+        await label.evaluate(b => b.click());
+
+        await page.waitForResponse(response => response.status() === 200);
+
         let trackButton = await page.$("#codeElementSubmit")
         await trackButton.evaluate(b => b.click());
         await page.waitForTimeout(500);
