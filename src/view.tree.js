@@ -55,18 +55,17 @@ class TreeView {
     $("#codeElementLabel").text(label);
   }
 
-  async restoreTreeData(repo) {
+  async restoreTreeData() {
     try {
-      const { username, reponame } = repo;
       let stateString = window.location.toString().split("?")[1];
       let state = new URLSearchParams(stateString);
-      let startData = state.get("startData");
-
-      if (startData){
-        this.startData = JSON.parse(decodeURIComponent(startData));
-      }
       this.treeData = {};
 
+      let treeDataId = state.get("treeDataId");
+      let treeDataString = window.localStorage.getItem(treeDataId);
+      if (treeDataString) {
+        this.treeData = JSON.parse(treeDataString);
+      }
       this.selectionText = state.get("selectionText");
       this.selectionType = state.get("selectionType");
 
@@ -79,7 +78,6 @@ class TreeView {
       if (this.selectionText) {
         this.selectionText = decodeURIComponent(this.selectionText)
         this.updateCodeElementSelectionField(this.selectionText)
-        this.treeData = await this.getDataFromAPI({ username, reponame, filePath: this.startData.filePath, commitId: this.startData.commitId, selection: this.startData.selection, lineNumber: this.startData.lineNumber });
       }
 
       if (this.selectionType) {
@@ -94,7 +92,6 @@ class TreeView {
       if (this.sessionSelection) {
         this.sessionSelection = decodeURIComponent(this.sessionSelection.trim()).trim();
       }
-
     }
     catch (err) {
       console.error("No session", err);
@@ -301,7 +298,7 @@ class TreeView {
   async show(repo, token) {
     $(document).trigger(EVENT.REPO_LOADED, { repo });
     this._showHeader(repo);
-    await this.restoreTreeData(repo);
+    await this.restoreTreeData();
 
     if (this.sessionSelection && this.githubCommitMode) {
       await this.scrollToCodeElement(this.sessionFilePath, this.sessionLineNumber, repo);
@@ -459,6 +456,13 @@ class TreeView {
         this.updateCodeElementSelectionField(null);
         this.$document.trigger(EVENT.REQ_END);
         this._initialScreen();
+        let localStorage = window.localStorage;
+        for (var i = 0, len = localStorage.length; i < len; ++i) {
+          let keyName = localStorage.key(i)
+          if (keyName?.includes("codetracker-")) {
+            localStorage.removeItem(keyName);
+          }
+        }
         const currentUrl = window.location.toString();
         if (currentUrl.includes('?')) {
           window.location = currentUrl.split("?")[0];
@@ -637,10 +641,12 @@ class TreeView {
         console.log(url);
 
         // store all info to storage for next page
-        const state = `&startData=${encodeURIComponent(JSON.stringify(this.startData))}&selectionText=${encodeURIComponent(selectionText.trim())}
+        let date = new Date();
+        let timeId = "codetracker-" + date.getTime().toString();
+        window.localStorage.setItem(timeId, JSON.stringify(this.treeData));
+        const state = `&treeDataId=${timeId}&selectionText=${encodeURIComponent(selectionText.trim())}
         &selectionType=${encodeURIComponent(this.selectionType.trim())}&filePath=${encodeURIComponent(filePath.trim())}
         &selection=${encodeURIComponent(selection.trim())}&lineNumber=${lineNumber}&nodeCount=${nodeCount}`;
-
         window.location = url + state;
         return url;
       }
