@@ -16,6 +16,8 @@ class TreeView {
     // restore session
     this.sessionFilePath;
     this.sessionSelection;
+
+    this.startData;
   }
 
   get $jstree() {
@@ -27,7 +29,7 @@ class TreeView {
 
   updateCodeElementSelectionField(selectionText) {
     document.getElementById("codeElementField").value = selectionText;
-    if(selectionText){
+    if (selectionText) {
       this.enableTrackButton();
     } else {
       this.disableTrackButton();
@@ -53,27 +55,52 @@ class TreeView {
     $("#codeElementLabel").text(label);
   }
 
-  async restoreTreeData() {
+  async restoreTreeData(repo) {
     try {
-      this.treeData = await window.extStore.get(window.STORE.TREE_DATA);
-      this.selectionText = await window.extStore.get(window.STORE.SELECTION_TEXT);
-      this.selectionType = await window.extStore.get(window.STORE.SELECTION_TYPE);
-      if (this.selectionText) {
-        this.updateCodeElementSelectionField(this.selectionText);
+      const { username, reponame } = repo;
+      let stateString = window.location.toString().split("?")[1];
+      let state = new URLSearchParams(stateString);
+      let startData = state.get("startData");
+
+      if (startData){
+        this.startData = JSON.parse(decodeURIComponent(startData));
       }
+      this.treeData = {};
+
+      this.selectionText = state.get("selectionText");
+      this.selectionType = state.get("selectionType");
+
+      this.sessionFilePath = state.get("filePath");
+      this.sessionSelection = state.get("selection");
+
+      this.sessionLineNumber = state.get("lineNumber");
+      this.nodeCount = state.get("nodeCount")?.split("#")[0];
+
+      if (this.selectionText) {
+        this.selectionText = decodeURIComponent(this.selectionText)
+        this.updateCodeElementSelectionField(this.selectionText)
+        this.treeData = await this.getDataFromAPI({ username, reponame, filePath: this.startData.filePath, commitId: this.startData.commitId, selection: this.startData.selection, lineNumber: this.startData.lineNumber });
+      }
+
       if (this.selectionType) {
+        this.selectionType = decodeURIComponent(this.selectionType)
         this.updateCodeElementLabel(this.selectionType);
       }
-      // capture methodname and filepath here
-      this.sessionFilePath = await window.extStore.get(window.STORE.FILE_PATH);
-      this.sessionSelection = await window.extStore.get(window.STORE.SELECTION);
-      this.sessionLineNumber = await window.extStore.get(window.STORE.LINE_NUMBER);
-      this.nodeCount = await window.extStore.get(window.STORE.NODE_COUNT);
+
+      if (this.sessionFilePath) {
+        this.sessionFilePath = decodeURIComponent(this.sessionFilePath.trim()).trim();
+      }
+
+      if (this.sessionSelection) {
+        this.sessionSelection = decodeURIComponent(this.sessionSelection.trim()).trim();
+      }
+
     }
     catch (err) {
-      console.log("No session", err);
+      console.error("No session", err);
     }
   }
+
 
   // linenumber of the user selection
   getLineNumberFromDOM_GET = (node) => {
@@ -247,7 +274,8 @@ class TreeView {
       if (!noTextDiv) {
         diffHash = diffHash + "R" + lineNumber;
       }
-      window.location = window.location.toString().split("#")[0] + "#" + diffHash;
+      let locationString = window.location.toString();
+      window.location = locationString.split("#")[0] + "#" + diffHash;
     }
 
     let fileDiv = this.getFileDivFromFilePath(filePath);
@@ -273,12 +301,12 @@ class TreeView {
   async show(repo, token) {
     $(document).trigger(EVENT.REPO_LOADED, { repo });
     this._showHeader(repo);
-    await this.restoreTreeData();
+    await this.restoreTreeData(repo);
 
     if (this.sessionSelection && this.githubCommitMode) {
       await this.scrollToCodeElement(this.sessionFilePath, this.sessionLineNumber, repo);
     }
-    console.log("TreeData is now", this.treeData);
+    console.log("Showing, TreeData is now", this.treeData);
     if (this.treeData.commitId) {
       this.drawTree(repo);
     } else {
@@ -303,10 +331,11 @@ class TreeView {
     for (let commit of data) {
       let filePath = commit.afterPath;
       let lineNumber = commit.afterLine;
-      let selection = commit.after;
+      let selection = commit.after.trim();
       let { evolutionHook, evolutionHookLine, evolutionHookPath } = commit;
       console.log({ evolutionHook, evolutionHookLine, evolutionHookPath });
       selection = selection.substring(0, selection.indexOf("("));
+      selection = selection.trim();
       console.log("TD: selection", selection);
       console.log("TD: FILE_PATH", filePath);
       let commitIdHash = commit.commitId.substring(0, 7);
@@ -352,7 +381,7 @@ class TreeView {
     this._removeTreeBody();
     $(document).trigger(EVENT.REQ_START);
     const { username, reponame, filePath, commitId, selection, lineNumber, evolution, parentMethod, parentMethodLine } = data;
-    let params = `owner=${username}&repoName=${reponame}&filePath=${filePath}&commitId=${commitId}&selection=${selection}&lineNumber=${lineNumber}`;
+    let params = `owner=${username}&repoName=${reponame}&filePath=${filePath.trim()}&commitId=${commitId}&selection=${selection.trim()}&lineNumber=${lineNumber}`;
     if (parentMethod) {
       params = params + `&parentMethod=${parentMethod}&parentMethodLine=${parentMethodLine}`;
     }
@@ -414,6 +443,12 @@ class TreeView {
         let lineNumber = this.lineNumber;
         let parentMethod = this.parentMethod;
         let parentMethodLine = this.parentMethodLine;
+        this.startData = {
+          commitId: branch,
+          lineNumber,
+          filePath,
+          selection: selectionText
+        }
         this.treeData = await this.getDataFromAPI({ username, reponame, filePath, commitId: branch, selection: selectionText, lineNumber, parentMethod, parentMethodLine });
 
         this.drawTree(repo);
@@ -422,17 +457,15 @@ class TreeView {
       .on('click', '#codeElementReset', async (event) => {
         event.preventDefault();
         this.updateCodeElementSelectionField(null);
-        this._initialScreen();
-        await window.extStore.set(window.STORE.TREE_DATA, {});
-        await window.extStore.set(window.STORE.SELECTION_TEXT, null);
-        await window.extStore.set(window.STORE.SELECTION_TYPE, null);
-        await window.extStore.set(window.STORE.FILE_PATH, null);
-        await window.extStore.set(window.STORE.SELECTION, null);
-        await window.extStore.set(window.STORE.LINE_NUMBER, 0);
-        await window.extStore.set(window.STORE.NODE_COUNT, 0);
         this.$document.trigger(EVENT.REQ_END);
+        this._initialScreen();
         const currentUrl = window.location.toString();
-        window.location = currentUrl.split("#")[0];
+        if (currentUrl.includes('?')) {
+          window.location = currentUrl.split("?")[0];
+        }
+        else {
+          window.location = currentUrl.split("#")[0];
+        }
       })
 
     document.addEventListener('click', async () => {
@@ -450,7 +483,6 @@ class TreeView {
 
       let fileDiv = this.getFileDivFromDOM(selection.anchorNode.parentElement);
       this.filePath = $(fileDiv).data("tagsearch-path");
-
       let lineNumber = this.getLineNumberFromDOM_GET(selection.anchorNode.parentElement);
       this.lineNumber = lineNumber;
       let [parentMethod, parentMethodLine] = await this.getParentMethodFromDOM_GET(selection.anchorNode.parentElement);
@@ -605,15 +637,11 @@ class TreeView {
         console.log(url);
 
         // store all info to storage for next page
-        await window.extStore.set(window.STORE.TREE_DATA, this.treeData);
-        await window.extStore.set(window.STORE.SELECTION_TEXT, selectionText);
-        await window.extStore.set(window.STORE.SELECTION_TYPE, this.selectionType);
-        await window.extStore.set(window.STORE.FILE_PATH, filePath);
-        await window.extStore.set(window.STORE.SELECTION, selection);
-        await window.extStore.set(window.STORE.LINE_NUMBER, lineNumber);
-        await window.extStore.set(window.STORE.NODE_COUNT, nodeCount);
+        const state = `&startData=${encodeURIComponent(JSON.stringify(this.startData))}&selectionText=${encodeURIComponent(selectionText.trim())}
+        &selectionType=${encodeURIComponent(this.selectionType.trim())}&filePath=${encodeURIComponent(filePath.trim())}
+        &selection=${encodeURIComponent(selection.trim())}&lineNumber=${lineNumber}&nodeCount=${nodeCount}`;
 
-        window.location = url;
+        window.location = url + state;
         return url;
       }
 
