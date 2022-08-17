@@ -27,7 +27,7 @@ class TreeView {
 
   updateCodeElementSelectionField(selectionText) {
     document.getElementById("codeElementField").value = selectionText;
-    if(selectionText){
+    if (selectionText) {
       this.enableTrackButton();
     } else {
       this.disableTrackButton();
@@ -55,25 +55,49 @@ class TreeView {
 
   async restoreTreeData() {
     try {
-      this.treeData = await window.extStore.get(window.STORE.TREE_DATA);
-      this.selectionText = await window.extStore.get(window.STORE.SELECTION_TEXT);
-      this.selectionType = await window.extStore.get(window.STORE.SELECTION_TYPE);
+      let stateString = window.location.toString().split("?")[1];
+      let state = new URLSearchParams(stateString);
+      this.treeData = JSON.parse(decodeURIComponent(state.get("treeData"))) || {};
+
+      this.selectionText = state.get("selectionText");
+      this.selectionType = state.get("selectionType");
+
+      this.sessionFilePath = state.get("filePath");
+      this.sessionSelection = state.get("selection");
+
+      this.sessionLineNumber = state.get("lineNumber");
+      this.nodeCount = state.get("nodeCount").split("#")[0];
+
       if (this.selectionText) {
-        this.updateCodeElementSelectionField(this.selectionText);
+        this.selectionText = decodeURIComponent(this.selectionText)
+        this.updateCodeElementSelectionField(this.selectionText)
       }
+
       if (this.selectionType) {
+        this.selectionType = decodeURIComponent(this.selectionType)
         this.updateCodeElementLabel(this.selectionType);
       }
-      // capture methodname and filepath here
-      this.sessionFilePath = await window.extStore.get(window.STORE.FILE_PATH);
-      this.sessionSelection = await window.extStore.get(window.STORE.SELECTION);
-      this.sessionLineNumber = await window.extStore.get(window.STORE.LINE_NUMBER);
-      this.nodeCount = await window.extStore.get(window.STORE.NODE_COUNT);
+
+      if (this.sessionFilePath) {
+        this.sessionFilePath = decodeURIComponent(this.sessionFilePath.trim()).trim();
+      }
+
+      if (this.sessionSelection) {
+        this.sessionSelection = decodeURIComponent(this.sessionSelection.trim()).trim();
+      }
+      console.log(this.selectionType)
+
+      console.log(this.sessionFilePath)
+      console.log(this.sessionSelection)
+      console.log(this.sessionLineNumber)
+      console.log(this.nodeCount)
+
     }
     catch (err) {
       console.log("No session", err);
     }
   }
+
 
   // linenumber of the user selection
   getLineNumberFromDOM_GET = (node) => {
@@ -247,7 +271,8 @@ class TreeView {
       if (!noTextDiv) {
         diffHash = diffHash + "R" + lineNumber;
       }
-      window.location = window.location.toString().split("#")[0] + "#" + diffHash;
+      let locationString = window.location.toString();
+      window.location = locationString.split("#")[0] + "#" + diffHash;
     }
 
     let fileDiv = this.getFileDivFromFilePath(filePath);
@@ -422,17 +447,15 @@ class TreeView {
       .on('click', '#codeElementReset', async (event) => {
         event.preventDefault();
         this.updateCodeElementSelectionField(null);
-        this._initialScreen();
-        await window.extStore.set(window.STORE.TREE_DATA, {});
-        await window.extStore.set(window.STORE.SELECTION_TEXT, null);
-        await window.extStore.set(window.STORE.SELECTION_TYPE, null);
-        await window.extStore.set(window.STORE.FILE_PATH, null);
-        await window.extStore.set(window.STORE.SELECTION, null);
-        await window.extStore.set(window.STORE.LINE_NUMBER, 0);
-        await window.extStore.set(window.STORE.NODE_COUNT, 0);
         this.$document.trigger(EVENT.REQ_END);
+        this._initialScreen();
         const currentUrl = window.location.toString();
-        window.location = currentUrl.split("#")[0];
+        if (currentUrl.includes('?')) {
+          window.location = currentUrl.split("?")[0];
+        }
+        else {
+          window.location = currentUrl.split("#")[0];
+        }
       })
 
     document.addEventListener('click', async () => {
@@ -605,15 +628,11 @@ class TreeView {
         console.log(url);
 
         // store all info to storage for next page
-        await window.extStore.set(window.STORE.TREE_DATA, this.treeData);
-        await window.extStore.set(window.STORE.SELECTION_TEXT, selectionText);
-        await window.extStore.set(window.STORE.SELECTION_TYPE, this.selectionType);
-        await window.extStore.set(window.STORE.FILE_PATH, filePath);
-        await window.extStore.set(window.STORE.SELECTION, selection);
-        await window.extStore.set(window.STORE.LINE_NUMBER, lineNumber);
-        await window.extStore.set(window.STORE.NODE_COUNT, nodeCount);
+        const state = `&treeData=${encodeURIComponent(JSON.stringify(this.treeData))}&selectionText=${encodeURIComponent(selectionText)}
+        &selectionType=${encodeURIComponent(this.selectionType)}&filePath=${encodeURIComponent(filePath.trim())}
+        &selection=${encodeURIComponent(selection.trim())}&lineNumber=${lineNumber}&nodeCount=${nodeCount}`;
 
-        window.location = url;
+        window.location = url + state;
         return url;
       }
 
