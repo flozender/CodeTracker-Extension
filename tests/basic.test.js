@@ -45,9 +45,5 @@ describe('Basic functionality', () => {
         await expect(page.content()).resolves.toContain('octotree-pinned');
     });
 
-    
-    // it('should capture selection', async () => {
-
-    // });
 });
 
