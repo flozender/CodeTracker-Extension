@@ -16,6 +16,7 @@ class TreeView {
     // restore session
     this.sessionFilePath;
     this.sessionSelection;
+    this.sessionBorders = [];
 
     this.startData;
   }
@@ -63,8 +64,12 @@ class TreeView {
 
       let treeDataId = state.get("treeDataId");
       let treeDataString = window.localStorage.getItem(treeDataId);
+      let sessionBordersString = window.localStorage.getItem(treeDataId+"-borders");
       if (treeDataString) {
         this.treeData = JSON.parse(treeDataString);
+      }
+      if (sessionBordersString) {
+        this.sessionBorders = JSON.parse(sessionBordersString);
       }
       this.selectionText = state.get("selectionText");
       this.selectionType = state.get("selectionType");
@@ -314,16 +319,26 @@ class TreeView {
 
   transformDataForTree = (data, username, reponame, evolution) => {
     let root = { children: [] };
-    let treeData = root["children"];
+    let treeData = root["children"]
     // let { branch } = currentNode;
     data = data.reverse();
     if (evolution) {
       this.nodeCount += data.length;
+      let latestBorder = this.sessionBorders[this.sessionBorders.length - 1];
+      console.log("datra", data)
+      this.sessionBorders.push({
+        y: latestBorder.y + latestBorder.height,
+        height: (data.length * 50),
+      });
     } else {
       this.nodeCount = data.length;
+      let border = {
+        y: -20,
+        height: (this.nodeCount * 50),
+      }
+      this.sessionBorders.push(border);
     }
     let parent = "null";
-    // check if current commit has a refactoring, if not add a dummy checkpoint node
     // let parent = branch.substring(0, 7);
     for (let commit of data) {
       let filePath = commit.afterPath;
@@ -614,9 +629,25 @@ class TreeView {
       .attr("height", height + margin.top + margin.bottom)
       .append("g")
       .attr("transform",
-        "translate(" + margin.left + "," + margin.top + ")");
+        "translate(" + margin.left + "," + margin.top + ")")
+      .attr("id", "codetracker-svg-g")
 
-    var i = 0,
+
+    for (let border of this.sessionBorders){
+      d3.select('#codetracker-svg-g').append('rect')
+      .attr('width', '85')
+      .attr('height', border.height)
+      .attr('x', 50)
+      .attr('y', border.y)
+      .attr('fill', 'rgba(0,0,0,0)')
+      .attr('stroke', 'gray')
+      .attr('stroke-dasharray', '7')
+      .attr('stroke-linecap', 'round')
+      .attr('stroke-width', '3')
+      .attr("stroke-opacity", 0.2);
+    }
+      
+      var i = 0,
       duration = 500,
       root;
 
@@ -644,6 +675,7 @@ class TreeView {
         let date = new Date();
         let timeId = "codetracker-" + date.getTime().toString();
         window.localStorage.setItem(timeId, JSON.stringify(this.treeData));
+        window.localStorage.setItem(timeId+"-borders", JSON.stringify(this.sessionBorders));
         const state = `&treeDataId=${timeId}&selectionText=${encodeURIComponent(selectionText.trim())}
         &selectionType=${encodeURIComponent(this.selectionType.trim())}&filePath=${encodeURIComponent(filePath.trim())}
         &selection=${encodeURIComponent(selection.trim())}&lineNumber=${lineNumber}&nodeCount=${nodeCount}`;
@@ -671,8 +703,14 @@ class TreeView {
 
         return "#fff";
       }
+      
+      let toolTip;
 
-      let toolTip = d3.select(treeBody).append("div").attr("class", "treeToolTip");
+      if ($("#codetracker-tooltip").length) {
+        toolTip = $("#codetracker-tooltip")[0];
+      } else {
+        toolTip = d3.select(treeBody).append("div").attr("class", "treeToolTip").attr("id", "codetracker-tooltip");
+      }
 
       // maps the node data to the tree layout
       var treeDataMap = treemap(root);
@@ -829,10 +867,6 @@ class TreeView {
           let parent = selected;
           let current = evoHookData;
 
-          if (current.commitId == selected.data.commitId) {
-            current = current["children"][0]
-          }
-
           // add the children to the treedata obj
           let iter = this.treeData;
           while (iter && iter.commitId !== selected.data.commitId) {
@@ -860,16 +894,6 @@ class TreeView {
           selected.children = childRoot;
           this.drawTree(repo);
         }
-
-        if (d.children) {
-          d._children = d.children;
-          d.children = null;
-        }
-        else {
-          d.children = d._children;
-          d._children = null;
-        }
-        update(d, data);
       }
 
       function nodeMouseOver(event, d) {
