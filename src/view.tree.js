@@ -325,16 +325,17 @@ class TreeView {
     if (evolution) {
       this.nodeCount += data.length;
       let latestBorder = this.sessionBorders[this.sessionBorders.length - 1];
-      console.log("datra", data)
       this.sessionBorders.push({
         y: latestBorder.y + latestBorder.height,
         height: (data.length * 50),
+        codeElement: data[0].after.trim()
       });
     } else {
       this.nodeCount = data.length;
       let border = {
         y: -20,
         height: (this.nodeCount * 50),
+        codeElement: data[0].after.trim()
       }
       this.sessionBorders.push(border);
     }
@@ -367,7 +368,8 @@ class TreeView {
         children: [],
         evolutionHook,
         evolutionHookLine,
-        evolutionHookPath
+        evolutionHookPath,
+        codeElement: commit.after.trim()
       }
       treeData.push(child);
       treeData = child['children'];
@@ -899,6 +901,8 @@ class TreeView {
       function nodeMouseOver(event, d) {
         const toolTipContents = `
         <div>
+        <em>${d.data.codeElement}</em>
+        <hr style="margin: 7px 0px;"/>
         By <b>${d.data.committer}</b>, ${timeSince(d.data.date.split("T")[0])}
         <br/>
         <p style="font-style: italics; margin-bottom: 15px;">${d.data.changes.map((change) => { return change.split("<").join("&lt;") })}</p>
