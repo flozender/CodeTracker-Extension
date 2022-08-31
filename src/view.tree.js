@@ -337,7 +337,7 @@ class TreeView {
         height: (this.nodeCount * 50),
         codeElement: data[0].after.trim()
       }
-      this.sessionBorders.push(border);
+      this.sessionBorders = [border];
     }
     let parent = "null";
     // let parent = branch.substring(0, 7);
@@ -642,9 +642,9 @@ class TreeView {
         "translate(" + margin.left + "," + margin.top + ")")
       .attr("id", "codetracker-svg-g")
 
-
     for (let border of this.sessionBorders){
       d3.select('#codetracker-svg-g').append('rect')
+      .attr("class", "codetracker-rect")
       .attr('width', '85')
       .attr('height', border.height)
       .attr('x', 50)
