@@ -489,8 +489,10 @@ class TreeView {
         }
       })
 
-    document.addEventListener('click', async () => {
-      await captureSelection();
+    document.addEventListener('click', async (event) => {
+      if (event.target.id !== "codeElementSubmit"){
+        await captureSelection();
+      }
     });
 
     const captureSelection = async () => {
@@ -513,7 +515,13 @@ class TreeView {
 
       const { username, reponame, branch } = repo;
       let filePath = this.filePath;
+
+      this._removeTreeBody();
+      $(document).trigger(EVENT.REQ_START);
       this.selectionType = await this.getCodeElementType({ username, reponame, filePath, commitId: branch, selection: selectionText, lineNumber });
+      $(document).trigger(EVENT.REQ_END);
+      this._initialScreen();
+      
       this.updateCodeElementLabel(this.selectionType);
       if (this.selectionType !== "Invalid Element") {
         this.updateCodeElementSelectionField(selectionText);
