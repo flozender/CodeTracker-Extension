@@ -131,8 +131,8 @@ describe('Track variables', () => {
             return n.getAttribute("data-changes");
         })).toContain(changeType);
 
-        let aTagselector = `#codetracker-svg-g > g:nth-child(${changeLength + i}) > a`;
-        let commitLink = await page.waitForSelector(aTagselector);
+        let circleSelector = `#codetracker-svg-g > g:nth-child(${changeLength + i}) > circle`;
+        let commitLink = await page.waitForSelector(circleSelector);
 
         await commitLink.click();
         await page.waitForResponse(response => response.status() === 200);
