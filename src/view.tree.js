@@ -17,6 +17,7 @@ class TreeView {
     this.sessionFilePath;
     this.sessionSelection;
     this.sessionBorders = [];
+    this.endLineNumber;
 
     this.startData;
   }
@@ -134,7 +135,7 @@ class TreeView {
     let textContent;
     let parentMethod;
     let parentMethodLine;
-    let methodRegex = /(public|protected|private|static|\s) +[\w\<\>\[\]]+\s+(\w+) *\([^\)]*\) *(\{?|[^;])/;
+    let methodRegex = /(?:(?:public|private|protected|static|final|native|synchronized|abstract|transient)+\s+)+[$_\w<>\[\]\s]*\s+[\$_\w]+\([^\)]*\)?\s*\{?[^\}]*\}?/;
     while (true && !!tr) {
       let length = Math.max(0, tr.children.length - 1);
       textContent = tr.children[length].textContent.trim();
@@ -147,7 +148,9 @@ class TreeView {
         await sleep(500);
       }
       if (matched) {
-        parentMethod = matched[2];
+        parentMethod = matched[0];
+        parentMethod = parentMethod.slice(0, parentMethod.indexOf("("));
+        parentMethod = parentMethod.split(" ").slice(-1)[0].trim();
         parentMethodLine = $(tr.children[length - 1]).data("line-number");
         console.log("Matched regex ", parentMethod, parentMethodLine)
         break;
@@ -208,6 +211,7 @@ class TreeView {
     if (diffNotLoaded) {
       console.log("DIFF UNLOADED")
       node.children[1].children[0].children[0].children[1].children[1].click();
+      node.children[1].children[0].children[0].children[1].children[1].children[0].click();
       await sleep(1300);
     }
     try {
@@ -271,7 +275,7 @@ class TreeView {
       let diffHash = $(fileDiv).attr("id");
       let noTextDiv = $(fileDiv).text().includes("File renamed without changes.")
 
-      console.log("NO TEXT", noTextDiv);
+      console.log("File renamed without changes: ", noTextDiv);
       console.log("HIGHLIGHT", lineNumber);
       if (!noTextDiv) {
         diffHash = diffHash + "R" + lineNumber;
@@ -394,11 +398,15 @@ class TreeView {
   getDataFromAPI = async (data) => {
     this._removeTreeBody();
     $(document).trigger(EVENT.REQ_START);
-    const { username, reponame, filePath, commitId, selection, lineNumber, evolution, parentMethod, parentMethodLine } = data;
+    const { username, reponame, filePath, commitId, selection, lineNumber, evolution, parentMethod, parentMethodLine, endLineNumber } = data;
     let params = `owner=${username}&repoName=${reponame}&filePath=${filePath.trim()}&commitId=${commitId}&selection=${selection.trim()}&lineNumber=${lineNumber}`;
     if (parentMethod) {
       params = params + `&parentMethod=${parentMethod}&parentMethodLine=${parentMethodLine}`;
     }
+    if (endLineNumber){
+      params = params + `&endLineNumber=${endLineNumber}`;
+    }
+
     const getRequest = `${API_URL}/track?${params}`;
     console.log(getRequest);
 
@@ -457,13 +465,14 @@ class TreeView {
         let lineNumber = this.lineNumber;
         let parentMethod = this.parentMethod;
         let parentMethodLine = this.parentMethodLine;
+        let endLineNumber = this.endLineNumber;
         this.startData = {
           commitId: branch,
           lineNumber,
           filePath,
           selection: selectionText
         }
-        this.treeData = await this.getDataFromAPI({ username, reponame, filePath, commitId: branch, selection: selectionText, lineNumber, parentMethod, parentMethodLine });
+        this.treeData = await this.getDataFromAPI({ username, reponame, filePath, commitId: branch, selection: selectionText, lineNumber, parentMethod, parentMethodLine, endLineNumber });
 
         this.drawTree(repo);
         this.$document.trigger(EVENT.REQ_END);
@@ -497,10 +506,16 @@ class TreeView {
 
     const captureSelection = async () => {
       let selection = document.getSelection();
+      console.log("selection: ", selection)
+
       let selectionText = selection.toString().trim();
+      console.log("selectionText: ", selectionText)
       if (selectionText === "") {
         return;
       }
+      let multiline = selection.anchorNode.parentElement !== selection.focusNode.parentElement;
+      console.log("multiline", multiline)
+
 
       this.selectionText = selectionText;
 
@@ -511,6 +526,14 @@ class TreeView {
       let [parentMethod, parentMethodLine] = await this.getParentMethodFromDOM_GET(selection.anchorNode.parentElement);
       this.parentMethod = parentMethod;
       this.parentMethodLine = parentMethodLine;
+      
+      if (multiline){
+        this.endLineNumber = selection.focusNode.parentElement.getAttribute("id").slice(2, );
+        console.log("EL", this.endLineNumber);
+        this.selectionText = selectionText.trim().split(" ")[0];
+        console.log("ST", this.selectionText);
+      }
+
       selection.anchorNode.parentElement.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
 
       const { username, reponame, branch } = repo;
@@ -518,14 +541,14 @@ class TreeView {
 
       this._removeTreeBody();
       $(document).trigger(EVENT.REQ_START);
-      this.selectionType = await this.getCodeElementType({ username, reponame, filePath, commitId: branch, selection: selectionText, lineNumber });
+      this.selectionType = await this.getCodeElementType({ username, reponame, filePath, commitId: branch, selection: this.selectionText, lineNumber });
       $(document).trigger(EVENT.REQ_END);
       this._initialScreen();
       
       this.updateCodeElementLabel(this.selectionType);
       if (this.selectionType !== "Invalid Element") {
-        this.updateCodeElementSelectionField(selectionText);
-      } else {
+        this.updateCodeElementSelectionField(this.selectionText);
+      } else {  
         this.updateCodeElementSelectionField(null);
       }
     }
@@ -686,9 +709,9 @@ class TreeView {
         let timeId = "codetracker-" + date.getTime().toString();
         window.localStorage.setItem(timeId, JSON.stringify(this.treeData));
         window.localStorage.setItem(timeId+"-borders", JSON.stringify(this.sessionBorders));
-        const state = `&treeDataId=${timeId}&selectionText=${encodeURIComponent(selectionText.trim())}
-        &selectionType=${encodeURIComponent(this.selectionType.trim())}&filePath=${encodeURIComponent(filePath.trim())}
-        &selection=${encodeURIComponent(selection.trim())}&lineNumber=${lineNumber}&nodeCount=${nodeCount}`;
+        const state = `&treeDataId=${timeId}&selectionText=${encodeURIComponent(selectionText.trim())}`+
+        `&selectionType=${encodeURIComponent(this.selectionType.trim())}&filePath=${encodeURIComponent(filePath.trim())}`+
+        `&selection=${encodeURIComponent(selection.trim())}&lineNumber=${lineNumber}&nodeCount=${nodeCount}`;
         window.location = url + state;
         return url;
       }
