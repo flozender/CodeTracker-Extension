@@ -35,8 +35,11 @@ describe('Track variables', () => {
         }
         await loadExtension();
 
-        let pinButton = await page.$("body > nav > div.octotree-main-icons > a.octotree-pin")
-        await pinButton.evaluate(b => b.click());
+        let pageContent = await page.content();
+        if (!pageContent.includes("octotree-pinned")) {
+            let pinButton = await page.$("body > nav > div.octotree-main-icons > a.octotree-pin")
+            await pinButton.evaluate(b => b.click());
+        }
         await page.waitForTimeout(500);
         // page
         //     .on('console', message => {
@@ -98,6 +101,7 @@ describe('Track variables', () => {
         await label.evaluate(b => b.click());
 
         await page.waitForResponse(response => response.status() === 200);
+        await page.waitForTimeout(500);
 
         let trackButton = await page.$("#codeElementSubmit")
         await trackButton.evaluate(b => b.click());

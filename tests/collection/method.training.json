@@ -1,0 +1,22 @@
+[
+    "checkstyle-Checker-fireErrors.json",
+    "checkstyle-Checker-process.json",
+    "checkstyle-CommonUtils-createPattern.json",
+    "checkstyle-FinalLocalVariableCheck-visitToken.json",
+    "checkstyle-JavadocMethodCheck-checkThrowsTags.json",
+    "checkstyle-Main-main.json",
+    "checkstyle-TreeWalker-processFiltered.json",
+    "checkstyle-WhitespaceAroundCheck-getAcceptableTokens.json",
+    "checkstyle-WhitespaceAroundCheck-isNotRelevantSituation.json",
+    "checkstyle-WhitespaceAroundCheck-shouldCheckSeparationFromNextToken.json",
+    "commons-lang-DateUtils-modify.json",
+    "commons-lang-DurationFormatUtils-formatPeriod.json",
+    "commons-lang-EqualsBuilder-reflectionAppend.json",
+    "commons-lang-FastDatePrinter-parsePattern.json",
+    "commons-lang-LocaleUtils-toLocale.json",
+    "commons-lang-NumberUtils-createNumber.json",
+    "commons-lang-NumberUtils-isCreatable.json",
+    "commons-lang-NumberUtils-isNumber.json",
+    "commons-lang-RandomStringUtils-random.json",
+    "commons-lang-StrSubstitutor-substitute.json"
+]

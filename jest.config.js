@@ -106,7 +106,13 @@ module.exports = {
   // projects: undefined,
 
   // Use this configuration option to add custom reporters to Jest
-  // reporters: undefined,
+  reporters: [
+    "default",
+    ["./node_modules/jest-html-reporter", {
+      "pageTitle": "Codetracker Extension test report",
+      includeFailureMsg: false
+    }]
+  ],
 
   // Automatically reset mock state before every test
   // resetMocks: false,

@@ -33,11 +33,8 @@ describe('Track methods', () => {
         }
         await loadExtension();
 
-        let pageContent = await page.content();
-        if (!pageContent.includes("octotree-pinned")) {
-            let pinButton = await page.$("body > nav > div.octotree-main-icons > a.octotree-pin")
-            await pinButton.evaluate(b => b.click());
-        }
+        let pinButton = await page.$("body > nav > div.octotree-main-icons > a.octotree-pin")
+        await pinButton.evaluate(b => b.click());
         await page.waitForTimeout(500);
     });
 
@@ -74,7 +71,6 @@ describe('Track methods', () => {
         await label.evaluate(b => b.click());
 
         await page.waitForResponse(response => response.status() === 200);
-        await page.waitForTimeout(500);
 
         let trackButton = await page.$("#codeElementSubmit")
         await trackButton.evaluate(b => b.click());
@@ -89,20 +85,18 @@ describe('Track methods', () => {
 
         let codeElementText = await codeElementField.evaluate((c) => c.value);
         await expect(codeElementText === FUNCTION_NAME).toBeTruthy();
-    });
 
-    it('should load the change history', async () => {
         await page.waitForResponse(response => response.status() === 200);
-        await expect(page.content()).resolves.toContain('codetracker-svg');
-    });
-
-    it('should load commit page on node click', async () => {
         await page.waitForTimeout(500);
+        await expect(page.content()).resolves.toContain('codetracker-svg');
+        await page.waitForTimeout(500);
+
         let i = 0;
         let changeSet = new Set(CHANGES.map((c) => c.commitId));
         let changeLength = changeSet.size + 1;
+        console.log(changeLength)
         let nodeSelector = `#codetracker-svg-g > g:nth-child(${changeLength + i})`;
-        console.log(nodeSelector);
+        
         let node = await page.waitForSelector(nodeSelector);
         let changeType = CHANGES[i]["changeType"];
         let commitId = CHANGES[i]["commitId"]
@@ -110,7 +104,7 @@ describe('Track methods', () => {
             return n.getAttribute("data-changes");
         })).toContain(changeType);
 
-        let circleSelector = `#codetracker-svg-g > g:nth-child(${changeLength + i}) > a`;
+        let circleSelector = `#codetracker-svg-g > g:nth-child(${changeLength + i}) > circle`;
         let commitLink = await page.waitForSelector(circleSelector);
 
         await commitLink.click();
@@ -120,9 +114,7 @@ describe('Track methods', () => {
         await expect(await page.evaluate(()=>{
             return window.location.toString();
         })).toContain(commitId);
-    });
 
-    it('should highlight the correct line', async()=>{
         await page.waitForNavigation();
         await page.waitForTimeout(1000);
         
@@ -148,7 +140,5 @@ describe('Track methods', () => {
         }, FUNCTION_NAME);
 
         await expect(correctLineSelected).toBeTruthy();
-    })
-
+    });
 });
-
