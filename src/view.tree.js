@@ -65,7 +65,7 @@ class TreeView {
 
       let treeDataId = state.get("treeDataId");
       let treeDataString = window.localStorage.getItem(treeDataId);
-      let sessionBordersString = window.localStorage.getItem(treeDataId+"-borders");
+      let sessionBordersString = window.localStorage.getItem(treeDataId + "-borders");
       if (treeDataString) {
         this.treeData = JSON.parse(treeDataString);
       }
@@ -80,6 +80,10 @@ class TreeView {
 
       this.sessionLineNumber = state.get("lineNumber");
       this.nodeCount = state.get("nodeCount")?.split("#")[0];
+      this.startData = state.get("startData");
+      if (this.startData){
+        this.startData = JSON.parse(decodeURIComponent(this.startData));
+      }
 
       if (this.selectionText) {
         this.selectionText = decodeURIComponent(this.selectionText)
@@ -325,7 +329,7 @@ class TreeView {
     let root = { children: [] };
     let treeData = root["children"]
     // let { branch } = currentNode;
-    data = data.reverse();
+    data = data.changes;
     if (evolution) {
       this.nodeCount += data.length;
       let latestBorder = this.sessionBorders[this.sessionBorders.length - 1];
@@ -384,6 +388,15 @@ class TreeView {
     return root.children[0];
   };
 
+  addToOracle = async (data) => {
+    const { username, reponame, filePath, commitId, selection, lineNumber, valid } = data;
+    let params = `owner=${username}&repoName=${reponame}&filePath=${filePath}&commitId=${commitId}&selection=${selection}&lineNumber=${lineNumber}&valid=${valid}`;
+    const getRequest = `${API_URL}/addToOracle?${params}`;
+    let response = await fetch(getRequest)
+      .then(response => response.json());
+    return response;
+  }
+
   getCodeElementType = async (data) => {
     const { username, reponame, filePath, commitId, selection, lineNumber } = data;
     let params = `owner=${username}&repoName=${reponame}&filePath=${filePath}&commitId=${commitId}&selection=${selection}&lineNumber=${lineNumber}`;
@@ -403,7 +416,7 @@ class TreeView {
     if (parentMethod) {
       params = params + `&parentMethod=${parentMethod}&parentMethodLine=${parentMethodLine}`;
     }
-    if (endLineNumber){
+    if (endLineNumber) {
       params = params + `&endLineNumber=${endLineNumber}`;
     }
 
@@ -441,6 +454,12 @@ class TreeView {
           <div>
             <button id="codeElementSubmit" class="btn btn-primary octotree-submit-button" disabled>Track</button>
             <button id="codeElementReset" class="btn btn-secondary octotree-submit-button">Reset</button>
+          </div>
+          <hr style="margin: 5px 0px !important;"/>
+          <label id="changeTypeLabel" class="selection-text" style="font-weight: 400; font-size: 14px;">...</label>
+          <div>
+            <button id="changeTrue" class="btn btn-outline octotree-submit-button">True</button>
+            <button id="changeFalse" class="btn btn-danger octotree-submit-button">False</button>
           </div>
         </div>`
       )
@@ -497,9 +516,43 @@ class TreeView {
           window.location = currentUrl.split("#")[0];
         }
       })
+      .on('click', '#changeTrue', async (event) => {
+        event.preventDefault();
+        this.$document.trigger(EVENT.REQ_START);
+
+        const { username, reponame } = repo;
+        console.log("startData", JSON.stringify(this.startData));
+        let {
+          commitId,
+          lineNumber,
+          filePath,
+          selection
+        } = this.startData;
+        let oracleResponse = await this.addToOracle({ username, reponame, filePath, commitId, selection, lineNumber, valid: true });
+        console.log("Added to oracle ", oracleResponse, true);
+        this.$document.trigger(EVENT.REQ_END);
+      })
+      .on('click', '#changeFalse', async (event) => {
+        event.preventDefault();
+        this.$document.trigger(EVENT.REQ_START);
+
+        const { username, reponame } = repo;
+
+        let {
+          commitId,
+          lineNumber,
+          filePath,
+          selection
+        } = this.startData;
+        let oracleResponse = await this.addToOracle({ username, reponame, filePath, commitId, selection, lineNumber, valid: false });
+        console.log("Added to oracle ", oracleResponse, false);
+        this.$document.trigger(EVENT.REQ_END);
+      })
+
+
 
     document.addEventListener('click', async (event) => {
-      if (event.target.id !== "codeElementSubmit"){
+      if (event.target.id !== "codeElementSubmit") {
         await captureSelection();
       }
     });
@@ -526,9 +579,9 @@ class TreeView {
       let [parentMethod, parentMethodLine] = await this.getParentMethodFromDOM_GET(selection.anchorNode.parentElement);
       this.parentMethod = parentMethod;
       this.parentMethodLine = parentMethodLine;
-      
-      if (multiline){
-        this.endLineNumber = selection.focusNode.parentElement.getAttribute("id").slice(2, );
+
+      if (multiline) {
+        this.endLineNumber = selection.focusNode.parentElement.getAttribute("id").slice(2,);
         console.log("EL", this.endLineNumber);
         this.selectionText = selectionText.trim().split(" ")[0];
         console.log("ST", this.selectionText);
@@ -544,11 +597,11 @@ class TreeView {
       this.selectionType = await this.getCodeElementType({ username, reponame, filePath, commitId: branch, selection: this.selectionText, lineNumber });
       $(document).trigger(EVENT.REQ_END);
       this._initialScreen();
-      
+
       this.updateCodeElementLabel(this.selectionType);
       if (this.selectionType !== "Invalid Element") {
         this.updateCodeElementSelectionField(this.selectionText);
-      } else {  
+      } else {
         this.updateCodeElementSelectionField(null);
       }
     }
@@ -665,22 +718,22 @@ class TreeView {
         "translate(" + margin.left + "," + margin.top + ")")
       .attr("id", "codetracker-svg-g")
 
-    for (let border of this.sessionBorders){
+    for (let border of this.sessionBorders) {
       d3.select('#codetracker-svg-g').append('rect')
-      .attr("class", "codetracker-rect")
-      .attr('width', '85')
-      .attr('height', border.height)
-      .attr('x', 50)
-      .attr('y', border.y)
-      .attr('fill', 'rgba(0,0,0,0)')
-      .attr('stroke', 'gray')
-      .attr('stroke-dasharray', '7')
-      .attr('stroke-linecap', 'round')
-      .attr('stroke-width', '3')
-      .attr("stroke-opacity", 0.2);
+        .attr("class", "codetracker-rect")
+        .attr('width', '85')
+        .attr('height', border.height)
+        .attr('x', 50)
+        .attr('y', border.y)
+        .attr('fill', 'rgba(0,0,0,0)')
+        .attr('stroke', 'gray')
+        .attr('stroke-dasharray', '7')
+        .attr('stroke-linecap', 'round')
+        .attr('stroke-width', '3')
+        .attr("stroke-opacity", 0.2);
     }
-      
-      var i = 0,
+
+    var i = 0,
       duration = 500,
       root;
 
@@ -708,16 +761,19 @@ class TreeView {
         let date = new Date();
         let timeId = "codetracker-" + date.getTime().toString();
         window.localStorage.setItem(timeId, JSON.stringify(this.treeData));
-        window.localStorage.setItem(timeId+"-borders", JSON.stringify(this.sessionBorders));
-        const state = `&treeDataId=${timeId}&selectionText=${encodeURIComponent(selectionText.trim())}`+
-        `&selectionType=${encodeURIComponent(this.selectionType.trim())}&filePath=${encodeURIComponent(filePath.trim())}`+
-        `&selection=${encodeURIComponent(selection.trim())}&lineNumber=${lineNumber}&nodeCount=${nodeCount}`;
+        window.localStorage.setItem(timeId + "-borders", JSON.stringify(this.sessionBorders));
+        const state = `&treeDataId=${timeId}&selectionText=${encodeURIComponent(selectionText.trim())}` +
+          `&selectionType=${encodeURIComponent(this.selectionType.trim())}&filePath=${encodeURIComponent(filePath.trim())}` +
+          `&selection=${encodeURIComponent(selection.trim())}&lineNumber=${lineNumber}&nodeCount=${nodeCount}&startData=${encodeURIComponent(JSON.stringify(this.startData))}`;
         window.location = url + state;
         return url;
       }
 
       const fillNode = (d, hover) => {
         const currentPage = repo.branch === d.data.commitId;
+        if (currentPage){
+          $("#changeTypeLabel").text(d.data.changes);
+        }
         if (currentPage && d.data.evolutionHook) {
           return "rgba(245, 240, 173)";
         }
@@ -736,7 +792,7 @@ class TreeView {
 
         return "#fff";
       }
-      
+
       let toolTip;
 
       if ($("#codetracker-tooltip").length) {
