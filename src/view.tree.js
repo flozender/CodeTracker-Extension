@@ -581,8 +581,6 @@ class TreeView {
       this.parentMethodLine = parentMethodLine;
 
       if (multiline) {
-        this.endLineNumber = selection.focusNode.parentElement.getAttribute("id").slice(2,);
-        console.log("EL", this.endLineNumber);
         this.selectionText = selectionText.trim().split(" ")[0];
         console.log("ST", this.selectionText);
       }
