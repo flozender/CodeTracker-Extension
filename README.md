@@ -27,3 +27,4 @@ Pin the sidebar using the pin button on the top right for the best experience.
  - Hover over node to see change history and other information
  - Click on a node to redirect to the exact code element in that commit
  - Yellow nodes denote "Evolution Hooks", right click to expand history for the parent method 
+ - If the extension behaves unexpectedly, please open an issue, and as a temporary workaround, click on the `Reset` button and try again.
