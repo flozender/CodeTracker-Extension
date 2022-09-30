@@ -1,6 +1,9 @@
 # CodeTracker Browser Extension
 
 ## Set Up Instructions
+
+Follow the build instructions to build the extension yourself, or download the release zip and jump to the `Load extension to browser` section.
+
 ### Requirements: 
  - Node.js v16.17.0 or higher
  - NPM v8.15.0 or higher
@@ -11,7 +14,7 @@
 ### To start the codetracker web api:
  - Clone the [CodeTracker API](https://github.com/flozender/CodeTracker-API) and follow the set up instructions
 
-### For the chrome extension:
+### Load extension to browser:
  - Open chrome and then "manage extensions", then click "Load Unpacked"
  - Select the `manifest.json` in directory `tmp/chrome`
  - visit any repository on [GitHub](https://www.github.com/checkstyle/checkstyle), the extension should be visible
