@@ -1,7 +1,7 @@
 {
-  "name": "octotree",
-  "version": "3.0.10",
-  "description": "GitHub on steroids",
+  "name": "codetracker-extension",
+  "version": "0.1.0",
+  "description": "CodeTracker Frontend Browser Extension",
   "scripts": {
     "start": "gulp",
     "watch": "gulp",
@@ -12,14 +12,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/ovity/octotree"
+    "url": "https://github.com/flozender/codetracker-extension"
   },
-  "author": "Buu Nguyen <buunguyen@gmail.com> (https://github.com/buunguyen)",
+  "author": "Tayeeb Hasan <tayeeb.hasan@gmail.com> (https://github.com/flozender)",
   "license": "AGPL",
   "bugs": {
-    "url": "https://github.com/ovity/octotree/issues"
+    "url": "https://github.com/flozender/codetracker-extension/issues"
   },
-  "homepage": "https://github.com/ovity/octotree",
+  "homepage": "https://github.com/flozender/codetracker-extension",
   "devDependencies": {
     "async": "~0.9.0",
     "chromedriver": "^2.21.2",
