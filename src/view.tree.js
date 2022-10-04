@@ -17,7 +17,6 @@ class TreeView {
     this.sessionFilePath;
     this.sessionSelection;
     this.sessionBorders = [];
-    this.endLineNumber;
 
     this.startData;
   }
@@ -325,7 +324,7 @@ class TreeView {
     let root = { children: [] };
     let treeData = root["children"]
     // let { branch } = currentNode;
-    data = data.reverse();
+    data = data.changes;
     if (evolution) {
       this.nodeCount += data.length;
       let latestBorder = this.sessionBorders[this.sessionBorders.length - 1];
@@ -398,13 +397,10 @@ class TreeView {
   getDataFromAPI = async (data) => {
     this._removeTreeBody();
     $(document).trigger(EVENT.REQ_START);
-    const { username, reponame, filePath, commitId, selection, lineNumber, evolution, parentMethod, parentMethodLine, endLineNumber } = data;
+    const { username, reponame, filePath, commitId, selection, lineNumber, evolution, parentMethod, parentMethodLine } = data;
     let params = `owner=${username}&repoName=${reponame}&filePath=${filePath.trim()}&commitId=${commitId}&selection=${selection.trim()}&lineNumber=${lineNumber}`;
     if (parentMethod) {
       params = params + `&parentMethod=${parentMethod}&parentMethodLine=${parentMethodLine}`;
-    }
-    if (endLineNumber){
-      params = params + `&endLineNumber=${endLineNumber}`;
     }
 
     const getRequest = `${API_URL}/track?${params}`;
@@ -465,14 +461,13 @@ class TreeView {
         let lineNumber = this.lineNumber;
         let parentMethod = this.parentMethod;
         let parentMethodLine = this.parentMethodLine;
-        let endLineNumber = this.endLineNumber;
         this.startData = {
           commitId: branch,
           lineNumber,
           filePath,
           selection: selectionText
         }
-        this.treeData = await this.getDataFromAPI({ username, reponame, filePath, commitId: branch, selection: selectionText, lineNumber, parentMethod, parentMethodLine, endLineNumber });
+        this.treeData = await this.getDataFromAPI({ username, reponame, filePath, commitId: branch, selection: selectionText, lineNumber, parentMethod, parentMethodLine });
 
         this.drawTree(repo);
         this.$document.trigger(EVENT.REQ_END);
@@ -528,8 +523,6 @@ class TreeView {
       this.parentMethodLine = parentMethodLine;
       
       if (multiline){
-        this.endLineNumber = selection.focusNode.parentElement.getAttribute("id").slice(2, );
-        console.log("EL", this.endLineNumber);
         this.selectionText = selectionText.trim().split(" ")[0];
         console.log("ST", this.selectionText);
       }
