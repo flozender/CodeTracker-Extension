@@ -923,13 +923,18 @@ class TreeView {
       }
 
       function nodeMouseOver(event, d) {
+        let changesString = "";
+        let mappedChanges = d.data.changes.map((change) => { return change.split("<").join("&lt;") });
+        for (let i = 0; i < mappedChanges.length; i++){
+          changesString = changesString + (i+1) + ". " + mappedChanges[i] + "<br/>";
+        }
         const toolTipContents = `
         <div>
         <em>${d.data.codeElement}</em>
         <hr style="margin: 7px 0px;"/>
         By <b>${d.data.committer}</b>, ${timeSince(d.data.date.split("T")[0])}
         <br/>
-        <p style="font-style: italics; margin-bottom: 15px;">${d.data.changes.map((change) => { return change.split("<").join("&lt;") })}</p>
+        <p style="font-style: italics; margin-bottom: 15px;">${changesString}</p>
         <b>${d.data.commitId}</b>
         </div>`;
 
