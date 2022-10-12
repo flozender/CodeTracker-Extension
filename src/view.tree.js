@@ -348,8 +348,8 @@ class TreeView {
       let filePath = commit.afterPath;
       let lineNumber = commit.afterLine;
       let selection = commit.after.trim();
-      let { evolutionHook, evolutionHookLine, evolutionHookPath } = commit;
-      console.log({ evolutionHook, evolutionHookLine, evolutionHookPath });
+      let { evolutionHook, evolutionHookLine, evolutionHookPath, evolutionHookCommit } = commit;
+      console.log({ evolutionHook, evolutionHookLine, evolutionHookPath, evolutionHookCommit });
       selection = selection.substring(0, selection.indexOf("("));
       selection = selection.trim();
       console.log("TD: selection", selection);
@@ -372,6 +372,7 @@ class TreeView {
         evolutionHook,
         evolutionHookLine,
         evolutionHookPath,
+        evolutionHookCommit,
         codeElement: commit.after.trim()
       }
       treeData.push(child);
@@ -874,11 +875,11 @@ class TreeView {
       }
 
       const getEvolutionHookData = async (node) => {
-        const { username, reponame, commitId, evolutionHook, evolutionHookPath, evolutionHookLine } = node.data;
+        const { username, reponame, evolutionHook, evolutionHookPath, evolutionHookLine, evolutionHookCommit } = node.data;
         let parentMethod = evolutionHook.split("#")[1];
         parentMethod = parentMethod.substring(0, parentMethod.indexOf("("));
         console.log(`Evolution Hook Data for: ${parentMethod} in file ${evolutionHookPath} at line ${evolutionHookLine}`);
-        const childData = await this.getDataFromAPI({ username, reponame, filePath: evolutionHookPath, commitId, selection: parentMethod, lineNumber: evolutionHookLine, evolution: true });
+        const childData = await this.getDataFromAPI({ username, reponame, filePath: evolutionHookPath, commitId: evolutionHookCommit, selection: parentMethod, lineNumber: evolutionHookLine, evolution: true });
         return childData;
       }
 
