@@ -56,48 +56,47 @@ class TreeView {
     $("#codeElementLabel").text(label);
   }
 
-  async restoreTreeData() {
+  async restoreTreeData(repo) {
     try {
-      let oracleResponse = await getOracleData();
       let stateString = window.location.toString().split("?")[1];
       let state = new URLSearchParams(stateString);
+      let continueTrack = state.get("continueTrack");
+
+      let oracleResponse = await this.getOracleData();
+      if (!continueTrack){
+        let startCommit = oracleResponse.expectedChanges[0].commitId;
+        console.log("NEW TRACK go to " + startCommit);
+        if (! (window.location.toString().includes(startCommit))){
+          window.location = oracleResponse.repositoryWebURL.slice(0, -4) + "/commit/" + startCommit + "?continueTrack=true"
+        }
+      }
+      let treeDataOracle = this.transformDataForTreeOracle(oracleResponse);
+      console.log("TREE ORACLE", treeDataOracle);
+
       this.treeData = {};
 
-      let treeDataId = state.get("treeDataId");
-      let treeDataString = window.localStorage.getItem(treeDataId);
-      let sessionBordersString = window.localStorage.getItem(treeDataId+"-borders");
-      if (treeDataString) {
-        this.treeData = JSON.parse(treeDataString);
-      }
-      if (sessionBordersString) {
-        this.sessionBorders = JSON.parse(sessionBordersString);
-      }
-      this.selectionText = state.get("selectionText");
-      this.selectionType = state.get("selectionType");
+      this.treeData = treeDataOracle;
 
-      this.sessionFilePath = state.get("filePath");
-      this.sessionSelection = state.get("selection");
 
-      this.sessionLineNumber = state.get("lineNumber");
-      this.nodeCount = state.get("nodeCount")?.split("#")[0];
+      this.selectionText = oracleResponse.blockType;
+      this.selectionType = 'block';
+      let currentSessionCommit = oracleResponse.expectedChanges.filter(change => change.commitId === repo.branch)[0];
+      this.sessionFilePath = currentSessionCommit.elementFileAfter;
+      this.sessionSelection = currentSessionCommit.elementNameAfter;
+      let blockKey = currentSessionCommit.elementNameAfter.split("$")[1];
+      let lineNumbers = blockKey.slice(blockKey.indexOf("(")+1, blockKey.indexOf(")")).split("-");
+      let lineNumber = lineNumbers[0];
+      this.sessionLineNumber = lineNumber;
+      this.nodeCount = oracleResponse.expectedChanges.length + 5;
 
       if (this.selectionText) {
-        this.selectionText = decodeURIComponent(this.selectionText)
         this.updateCodeElementSelectionField(this.selectionText)
       }
 
       if (this.selectionType) {
-        this.selectionType = decodeURIComponent(this.selectionType)
         this.updateCodeElementLabel(this.selectionType);
       }
 
-      if (this.sessionFilePath) {
-        this.sessionFilePath = decodeURIComponent(this.sessionFilePath.trim()).trim();
-      }
-
-      if (this.sessionSelection) {
-        this.sessionSelection = decodeURIComponent(this.sessionSelection.trim()).trim();
-      }
     }
     catch (err) {
       console.error("No session", err);
@@ -307,7 +306,7 @@ class TreeView {
   async show(repo, token) {
     $(document).trigger(EVENT.REPO_LOADED, { repo });
     this._showHeader(repo);
-    await this.restoreTreeData();
+    await this.restoreTreeData(repo);
 
     if (this.sessionSelection && this.githubCommitMode) {
       await this.scrollToCodeElement(this.sessionFilePath, this.sessionLineNumber, repo);
@@ -320,6 +319,55 @@ class TreeView {
     }
     $(this).trigger(EVENT.VIEW_READY);
   }
+
+  transformDataForTreeOracle = (data) => {
+    let root = { children: [] };
+    let treeData = root["children"]
+    // let { branch } = currentNode;
+    let [username, reponame] = data.repositoryWebURL.slice(19,-4).split("/");
+    data = data.expectedChanges;
+    this.nodeCount = data.length;
+    let border = {
+      y: -20,
+      height: (this.nodeCount * 50),
+      codeElement: data[0].elementNameAfter.trim()
+    }
+    this.sessionBorders = [border];
+   
+    let parent = "null";
+    // let parent = branch.substring(0, 7);
+    for (let commit of data) {
+      let filePath = commit.elementFileAfter;
+      let blockKey = commit.elementNameAfter.split("$")[1];
+      let lineNumbers = blockKey.slice(blockKey.indexOf("(")+1, blockKey.indexOf(")")).split("-");
+      let lineNumber = lineNumbers[0];
+      let selection = commit.elementNameAfter.trim();
+      selection = selection.substring(0, selection.indexOf("("));
+      selection = selection.trim();
+      let commitIdHash = commit.commitId.substring(0, 7);
+      let { changeType, commitTime, commitId } = commit;
+      let child = {
+        name: commitIdHash,
+        changeType,
+        commitTime,
+        commitId,
+        parent,
+        filePath,
+        lineNumber,
+        selection,
+        username,
+        reponame,
+        children: [],
+        codeElement: commit.elementNameAfter.trim()
+      }
+      treeData.push(child);
+      treeData = child['children'];
+      parent = commitId;
+    }
+
+    console.log(root.children[0]);
+    return root.children[0];
+  };
 
   transformDataForTree = (data, username, reponame, evolution) => {
     let root = { children: [] };
@@ -394,6 +442,14 @@ class TreeView {
     return oracleData;
   }
 
+  addToOracle = async (commitId, valid) => {
+    let params = `commitId=${commitId}&valid=${valid}`;
+    const getRequest = `${API_URL}/addToOracle?${params}`;
+    let response = await fetch(getRequest)
+      .then(response => response.json());
+    return response;
+  }
+
   getCodeElementType = async (data) => {
     const { username, reponame, filePath, commitId, selection, lineNumber } = data;
     let params = `owner=${username}&repoName=${reponame}&filePath=${filePath}&commitId=${commitId}&selection=${selection}&lineNumber=${lineNumber}`;
@@ -447,7 +503,13 @@ class TreeView {
           </div>
           <div>
             <button id="codeElementSubmit" class="btn btn-primary octotree-submit-button">Track</button>
-            <button id="codeElementReset" class="btn btn-secondary octotree-submit-button">Reset</button>
+            <button id="codeElementReset" class="btn btn-secondary octotree-submit-button">Next</button>
+          </div>
+          <hr style="margin: 5px 0px !important;"/>
+          <label id="changeTypeLabel" class="selection-text" style="font-weight: 400; font-size: 14px;">...</label>
+          <div>
+            <button id="changeTrue" class="btn btn-outline octotree-submit-button">True</button>
+            <button id="changeFalse" class="btn btn-danger octotree-submit-button">False</button>
           </div>
         </div>`
       )
@@ -501,6 +563,37 @@ class TreeView {
           window.location = currentUrl.split("#")[0];
         }
       })
+      .on('click', '#changeTrue', async (event) => {
+        event.preventDefault();
+        this.$document.trigger(EVENT.REQ_START);
+
+        let oracleResponse = await this.addToOracle(repo.branch, true);
+        console.log("Added to oracle", oracleResponse, true);
+        this.$document.trigger(EVENT.REQ_END);
+        const currentUrl = window.location.toString();
+        if (currentUrl.includes('?')) {
+          window.location = currentUrl.split("?")[0];
+        }
+        else {
+          window.location = currentUrl.split("#")[0];
+        }
+      })
+      .on('click', '#changeFalse', async (event) => {
+        event.preventDefault();
+        this.$document.trigger(EVENT.REQ_START);
+
+       
+        let oracleResponse = await this.addToOracle(repo.branch, false);
+        console.log("Added to oracle", oracleResponse, false);
+        this.$document.trigger(EVENT.REQ_END);
+        const currentUrl = window.location.toString();
+        if (currentUrl.includes('?')) {
+          window.location = currentUrl.split("?")[0];
+        }
+        else {
+          window.location = currentUrl.split("#")[0];
+        }
+      })
 
     document.addEventListener('click', async (event) => {
       if (event.target.id !== "codeElementSubmit"){
@@ -527,7 +620,7 @@ class TreeView {
       this.filePath = $(fileDiv).data("tagsearch-path");
       let lineNumber = this.getLineNumberFromDOM_GET(selection.anchorNode.parentElement);
       this.lineNumber = lineNumber;
-      let [parentMethod, parentMethodLine] = await this.getParentMethodFromDOM_GET(selection.anchorNode.parentElement);
+      // let [parentMethod, parentMethodLine] = await this.getParentMethodFromDOM_GET(selection.anchorNode.parentElement);
       this.parentMethod = parentMethod;
       this.parentMethodLine = parentMethodLine;
       
@@ -713,13 +806,16 @@ class TreeView {
         window.localStorage.setItem(timeId+"-borders", JSON.stringify(this.sessionBorders));
         const state = `&treeDataId=${timeId}&selectionText=${encodeURIComponent(selectionText.trim())}`+
         `&selectionType=${encodeURIComponent(this.selectionType.trim())}&filePath=${encodeURIComponent(filePath.trim())}`+
-        `&selection=${encodeURIComponent(selection.trim())}&lineNumber=${lineNumber}&nodeCount=${nodeCount}`;
+        `&selection=${encodeURIComponent(selection.trim())}&lineNumber=${lineNumber}&nodeCount=${nodeCount}&continueTrack=${true}`;
         window.location = url + state;
         return url;
       }
 
       const fillNode = (d, hover) => {
         const currentPage = repo.branch === d.data.commitId;
+        if (currentPage){
+          $("#changeTypeLabel").text(d.data.changeType);
+        }
         if (currentPage && d.data.evolutionHook) {
           return "rgba(245, 240, 173)";
         }
@@ -932,17 +1028,14 @@ class TreeView {
       }
 
       function nodeMouseOver(event, d) {
-        let changesString = "";
-        let mappedChanges = d.data.changes.map((change) => { return change.split("<").join("&lt;") });
-        for (let i = 0; i < mappedChanges.length; i++){
-          changesString = changesString + (i+1) + ". " + mappedChanges[i] + "<br/>";
-        }
+        let changesString = d.data.changeType.split("<").join("&lt;")
+        console.log(d.data);
+ 
+   
         const toolTipContents = `
         <div>
         <em>${d.data.codeElement}</em>
         <hr style="margin: 7px 0px;"/>
-        By <b>${d.data.committer}</b>, ${timeSince(d.data.date.split("T")[0])}
-        <br/>
         <p style="font-style: italics; margin-bottom: 15px;">${changesString}</p>
         <b>${d.data.commitId}</b>
         </div>`;
