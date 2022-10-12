@@ -17,7 +17,7 @@ class TreeView {
     this.sessionFilePath;
     this.sessionSelection;
     this.sessionBorders = [];
-
+    this.oracleData;
     this.startData;
   }
 
@@ -58,6 +58,7 @@ class TreeView {
 
   async restoreTreeData() {
     try {
+      let oracleResponse = await getOracleData();
       let stateString = window.location.toString().split("?")[1];
       let state = new URLSearchParams(stateString);
       this.treeData = {};
@@ -383,6 +384,16 @@ class TreeView {
     return root.children[0];
   };
 
+  getOracleData = async () => {
+    const getRequest = `${API_URL}/getOracleData`;
+    let response = await fetch(getRequest)
+      .then(response => response.json());
+    let oracleData = response;
+    console.log(oracleData);
+    this.oracleData = oracleData;
+    return oracleData;
+  }
+
   getCodeElementType = async (data) => {
     const { username, reponame, filePath, commitId, selection, lineNumber } = data;
     let params = `owner=${username}&repoName=${reponame}&filePath=${filePath}&commitId=${commitId}&selection=${selection}&lineNumber=${lineNumber}`;
@@ -421,12 +432,12 @@ class TreeView {
       .find('.octotree-view-header')
       .html(
         `<div class="octotree-header-summary">
-          <div class="octotree-header-repo">
+          <div class="octotree-header-repo" style="color: red;">
             <i class="octotree-icon-repo"></i>
             <a href="/${repo.username}">${repo.username}</a> /
             <a data-pjax href="/${repo.username}/${repo.reponame}">${repo.reponame}</a>
           </div>
-          <div class="octotree-header-branch">
+          <div class="octotree-header-branch" style="color: red;">
             <i class="octotree-icon-branch"></i>
             ${deXss((repo.displayBranch || repo.branch).toString())}
           </div>
@@ -435,7 +446,7 @@ class TreeView {
             <input id="codeElementField" type="text" class="form-control input-block selection-field" readonly/>
           </div>
           <div>
-            <button id="codeElementSubmit" class="btn btn-primary octotree-submit-button" disabled>Track</button>
+            <button id="codeElementSubmit" class="btn btn-primary octotree-submit-button">Track</button>
             <button id="codeElementReset" class="btn btn-secondary octotree-submit-button">Reset</button>
           </div>
         </div>`
@@ -453,9 +464,7 @@ class TreeView {
         this.$document.trigger(EVENT.REQ_START);
 
         const { username, reponame, branch } = repo;
-        if (!this.selectionText) {
-          await captureSelection();
-        }
+       
         let selectionText = this.selectionText;
         let filePath = this.filePath;
         let lineNumber = this.lineNumber;
