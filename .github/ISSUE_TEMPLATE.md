@@ -3,7 +3,8 @@ If this is a bug, provide as much information as you can to help reproduce the i
 
 ### Environment (if bug)
 
-* Codetracker version:
+* Codetracker Extension version:
+* Codetracker API version:
 * Browser & version:
 * OS & version:
 * Screenshot, if any (drag an image here)
