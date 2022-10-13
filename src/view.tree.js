@@ -519,9 +519,9 @@ class TreeView {
       this.filePath = $(fileDiv).data("tagsearch-path");
       let lineNumber = this.getLineNumberFromDOM_GET(selection.anchorNode.parentElement);
       this.lineNumber = lineNumber;
-      let [parentMethod, parentMethodLine] = await this.getParentMethodFromDOM_GET(selection.anchorNode.parentElement);
-      this.parentMethod = parentMethod;
-      this.parentMethodLine = parentMethodLine;
+      // let [parentMethod, parentMethodLine] = await this.getParentMethodFromDOM_GET(selection.anchorNode.parentElement);
+      // this.parentMethod = parentMethod;
+      // this.parentMethodLine = parentMethodLine;
       
       if (multiline){
         this.selectionText = selectionText.trim().split(" ")[0];
