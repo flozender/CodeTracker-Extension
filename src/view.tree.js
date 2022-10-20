@@ -63,10 +63,10 @@ class TreeView {
       let continueTrack = state.get("continueTrack");
 
       let oracleResponse = await this.getOracleData();
-      if (!continueTrack){
+      if (!continueTrack) {
         let startCommit = oracleResponse.expectedChanges[0].commitId;
         console.log("NEW TRACK go to " + startCommit);
-        if (! (window.location.toString().includes(startCommit))){
+        if (!(window.location.toString().includes(startCommit))) {
           window.location = oracleResponse.repositoryWebURL.slice(0, -4) + "/commit/" + startCommit + "?continueTrack=true"
         }
       }
@@ -84,7 +84,7 @@ class TreeView {
       this.sessionFilePath = currentSessionCommit.elementFileAfter;
       this.sessionSelection = currentSessionCommit.elementNameAfter;
       let blockKey = currentSessionCommit.elementNameAfter.split("$")[1];
-      let lineNumbers = blockKey.slice(blockKey.indexOf("(")+1, blockKey.indexOf(")")).split("-");
+      let lineNumbers = blockKey.slice(blockKey.indexOf("(") + 1, blockKey.indexOf(")")).split("-");
       let lineNumber = lineNumbers[0];
       this.sessionLineNumber = lineNumber;
       this.nodeCount = oracleResponse.expectedChanges.length + 5;
@@ -324,7 +324,7 @@ class TreeView {
     let root = { children: [] };
     let treeData = root["children"]
     // let { branch } = currentNode;
-    let [username, reponame] = data.repositoryWebURL.slice(19,-4).split("/");
+    let [username, reponame] = data.repositoryWebURL.slice(19, -4).split("/");
     data = data.expectedChanges;
     this.nodeCount = data.length;
     let border = {
@@ -333,13 +333,13 @@ class TreeView {
       codeElement: data[0].elementNameAfter.trim()
     }
     this.sessionBorders = [border];
-   
+
     let parent = "null";
     // let parent = branch.substring(0, 7);
     for (let commit of data) {
       let filePath = commit.elementFileAfter;
       let blockKey = commit.elementNameAfter.split("$")[1];
-      let lineNumbers = blockKey.slice(blockKey.indexOf("(")+1, blockKey.indexOf(")")).split("-");
+      let lineNumbers = blockKey.slice(blockKey.indexOf("(") + 1, blockKey.indexOf(")")).split("-");
       let lineNumber = lineNumbers[0];
       let selection = commit.elementNameAfter.trim();
       selection = selection.substring(0, selection.indexOf("("));
@@ -443,7 +443,7 @@ class TreeView {
   }
 
   addToOracle = async (commitId, valid) => {
-    let params = `commitId=${commitId}&valid=${valid}`;
+    let params = `commitId=${commitId}&valid=${valid}&commitURL=${encodeURIComponent(window.location.href.split("?")[0])}&diffKey=${encodeURIComponent(window.location.href.split("#")[1])}`;
     const getRequest = `${API_URL}/addToOracle?${params}`;
     let response = await fetch(getRequest)
       .then(response => response.json());
@@ -526,7 +526,7 @@ class TreeView {
         this.$document.trigger(EVENT.REQ_START);
 
         const { username, reponame, branch } = repo;
-       
+
         let selectionText = this.selectionText;
         let filePath = this.filePath;
         let lineNumber = this.lineNumber;
@@ -582,7 +582,7 @@ class TreeView {
         event.preventDefault();
         this.$document.trigger(EVENT.REQ_START);
 
-       
+
         let oracleResponse = await this.addToOracle(repo.branch, false);
         console.log("Added to oracle", oracleResponse, false);
         this.$document.trigger(EVENT.REQ_END);
@@ -596,7 +596,7 @@ class TreeView {
       })
 
     document.addEventListener('click', async (event) => {
-      if (event.target.id !== "codeElementSubmit"){
+      if (event.target.id !== "codeElementSubmit") {
         await captureSelection();
       }
     });
@@ -623,8 +623,8 @@ class TreeView {
       // let [parentMethod, parentMethodLine] = await this.getParentMethodFromDOM_GET(selection.anchorNode.parentElement);
       this.parentMethod = parentMethod;
       this.parentMethodLine = parentMethodLine;
-      
-      if (multiline){
+
+      if (multiline) {
         this.selectionText = selectionText.trim().split(" ")[0];
         console.log("ST", this.selectionText);
       }
@@ -639,11 +639,11 @@ class TreeView {
       this.selectionType = await this.getCodeElementType({ username, reponame, filePath, commitId: branch, selection: this.selectionText, lineNumber });
       $(document).trigger(EVENT.REQ_END);
       this._initialScreen();
-      
+
       this.updateCodeElementLabel(this.selectionType);
       if (this.selectionType !== "Invalid Element") {
         this.updateCodeElementSelectionField(this.selectionText);
-      } else {  
+      } else {
         this.updateCodeElementSelectionField(null);
       }
     }
@@ -760,22 +760,22 @@ class TreeView {
         "translate(" + margin.left + "," + margin.top + ")")
       .attr("id", "codetracker-svg-g")
 
-    for (let border of this.sessionBorders){
+    for (let border of this.sessionBorders) {
       d3.select('#codetracker-svg-g').append('rect')
-      .attr("class", "codetracker-rect")
-      .attr('width', '85')
-      .attr('height', border.height)
-      .attr('x', 50)
-      .attr('y', border.y)
-      .attr('fill', 'rgba(0,0,0,0)')
-      .attr('stroke', 'gray')
-      .attr('stroke-dasharray', '7')
-      .attr('stroke-linecap', 'round')
-      .attr('stroke-width', '3')
-      .attr("stroke-opacity", 0.2);
+        .attr("class", "codetracker-rect")
+        .attr('width', '85')
+        .attr('height', border.height)
+        .attr('x', 50)
+        .attr('y', border.y)
+        .attr('fill', 'rgba(0,0,0,0)')
+        .attr('stroke', 'gray')
+        .attr('stroke-dasharray', '7')
+        .attr('stroke-linecap', 'round')
+        .attr('stroke-width', '3')
+        .attr("stroke-opacity", 0.2);
     }
-      
-      var i = 0,
+
+    var i = 0,
       duration = 500,
       root;
 
@@ -803,17 +803,17 @@ class TreeView {
         let date = new Date();
         let timeId = "codetracker-" + date.getTime().toString();
         window.localStorage.setItem(timeId, JSON.stringify(this.treeData));
-        window.localStorage.setItem(timeId+"-borders", JSON.stringify(this.sessionBorders));
-        const state = `&treeDataId=${timeId}&selectionText=${encodeURIComponent(selectionText.trim())}`+
-        `&selectionType=${encodeURIComponent(this.selectionType.trim())}&filePath=${encodeURIComponent(filePath.trim())}`+
-        `&selection=${encodeURIComponent(selection.trim())}&lineNumber=${lineNumber}&nodeCount=${nodeCount}&continueTrack=${true}`;
+        window.localStorage.setItem(timeId + "-borders", JSON.stringify(this.sessionBorders));
+        const state = `&treeDataId=${timeId}&selectionText=${encodeURIComponent(selectionText.trim())}` +
+          `&selectionType=${encodeURIComponent(this.selectionType.trim())}&filePath=${encodeURIComponent(filePath.trim())}` +
+          `&selection=${encodeURIComponent(selection.trim())}&lineNumber=${lineNumber}&nodeCount=${nodeCount}&continueTrack=${true}`;
         window.location = url + state;
         return url;
       }
 
       const fillNode = (d, hover) => {
         const currentPage = repo.branch === d.data.commitId;
-        if (currentPage){
+        if (currentPage) {
           $("#changeTypeLabel").text(d.data.changeType);
         }
         if (currentPage && d.data.evolutionHook) {
@@ -834,7 +834,7 @@ class TreeView {
 
         return "#fff";
       }
-      
+
       let toolTip;
 
       if ($("#codetracker-tooltip").length) {
@@ -1030,8 +1030,8 @@ class TreeView {
       function nodeMouseOver(event, d) {
         let changesString = d.data.changeType.split("<").join("&lt;")
         console.log(d.data);
- 
-   
+
+
         const toolTipContents = `
         <div>
         <em>${d.data.codeElement}</em>
