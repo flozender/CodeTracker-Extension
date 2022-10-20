@@ -442,8 +442,8 @@ class TreeView {
     return oracleData;
   }
 
-  addToOracle = async (commitId, valid) => {
-    let params = `commitId=${commitId}&valid=${valid}&commitURL=${encodeURIComponent(window.location.href.split("?")[0])}&diffKey=${encodeURIComponent(window.location.href.split("#")[1])}`;
+  addToOracle = async (commitId, valid, report) => {
+    let params = `commitId=${commitId}&valid=${valid}&report=${report}&commitURL=${encodeURIComponent(window.location.href.split("?")[0])}&diffKey=${encodeURIComponent(window.location.href.split("#")[1])}`;
     const getRequest = `${API_URL}/addToOracle?${params}`;
     let response = await fetch(getRequest)
       .then(response => response.json());
@@ -510,6 +510,7 @@ class TreeView {
           <div>
             <button id="changeTrue" class="btn btn-outline octotree-submit-button">True</button>
             <button id="changeFalse" class="btn btn-danger octotree-submit-button">False</button>
+            <button id="changeReport" class="btn btn-danger octotree-submit-button">Report</button>
           </div>
         </div>`
       )
@@ -567,7 +568,7 @@ class TreeView {
         event.preventDefault();
         this.$document.trigger(EVENT.REQ_START);
 
-        let oracleResponse = await this.addToOracle(repo.branch, true);
+        let oracleResponse = await this.addToOracle(repo.branch, true, false);
         console.log("Added to oracle", oracleResponse, true);
         this.$document.trigger(EVENT.REQ_END);
         const currentUrl = window.location.toString();
@@ -583,7 +584,7 @@ class TreeView {
         this.$document.trigger(EVENT.REQ_START);
 
 
-        let oracleResponse = await this.addToOracle(repo.branch, false);
+        let oracleResponse = await this.addToOracle(repo.branch, false, false);
         console.log("Added to oracle", oracleResponse, false);
         this.$document.trigger(EVENT.REQ_END);
         const currentUrl = window.location.toString();
@@ -594,7 +595,22 @@ class TreeView {
           window.location = currentUrl.split("#")[0];
         }
       })
+      .on('click', '#changeReport', async (event) => {
+        event.preventDefault();
+        this.$document.trigger(EVENT.REQ_START);
 
+
+        let oracleResponse = await this.addToOracle(repo.branch, false, true);
+        console.log("Added to oracle", oracleResponse, false);
+        this.$document.trigger(EVENT.REQ_END);
+        const currentUrl = window.location.toString();
+        if (currentUrl.includes('?')) {
+          window.location = currentUrl.split("?")[0];
+        }
+        else {
+          window.location = currentUrl.split("#")[0];
+        }
+      })
     document.addEventListener('click', async (event) => {
       if (event.target.id !== "codeElementSubmit") {
         await captureSelection();
