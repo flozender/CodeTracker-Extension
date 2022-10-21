@@ -4,8 +4,6 @@ class TreeView {
     this.adapter = adapter;
     this.selectionText;
     this.lineNumber;
-    this.parentMethod;
-    this.parentMethodLine;
     this.filePath;
     this.nodeCount;
     this.evoHookData;
@@ -64,7 +62,7 @@ class TreeView {
 
       let treeDataId = state.get("treeDataId");
       let treeDataString = window.localStorage.getItem(treeDataId);
-      let sessionBordersString = window.localStorage.getItem(treeDataId+"-borders");
+      let sessionBordersString = window.localStorage.getItem(treeDataId + "-borders");
       if (treeDataString) {
         this.treeData = JSON.parse(treeDataString);
       }
@@ -126,42 +124,6 @@ class TreeView {
     return lineNumber;
   }
 
-  getParentMethodFromDOM_GET = async (node) => {
-    let tr = node;
-    while (tr.tagName !== "TR") {
-      tr = tr.parentElement;
-    }
-    let textContent;
-    let parentMethod;
-    let parentMethodLine;
-    let methodRegex = /(?:(?:public|private|protected|static|final|native|synchronized|abstract|transient)+\s+)+[$_\w<>\[\]\s]*\s+[\$_\w]+\([^\)]*\)?\s*\{?[^\}]*\}?/;
-    while (true && !!tr) {
-      let length = Math.max(0, tr.children.length - 1);
-      textContent = tr.children[length].textContent.trim();
-      let matched = textContent.match(methodRegex);
-      let isExpandable = $(tr).find('td:first-child:has(a)');
-      if (isExpandable.length > 0) {
-        tr = tr.nextElementSibling;
-        isExpandable[0].children[0].click();
-        matched = false;
-        await sleep(500);
-      }
-      if (matched) {
-        parentMethod = matched[0];
-        parentMethod = parentMethod.slice(0, parentMethod.indexOf("("));
-        parentMethod = parentMethod.split(" ").slice(-1)[0].trim();
-        parentMethodLine = $(tr.children[length - 1]).data("line-number");
-        console.log("Matched regex ", parentMethod, parentMethodLine)
-        break;
-      }
-      try {
-        tr = tr.previousElementSibling;
-      } catch (e) {
-        break;
-      }
-    }
-    return [parentMethod, parentMethodLine];
-  }
 
   // filepath div of the user selection
   getFileDivFromDOM = (node) => {
@@ -398,11 +360,9 @@ class TreeView {
   getDataFromAPI = async (data) => {
     this._removeTreeBody();
     $(document).trigger(EVENT.REQ_START);
-    const { username, reponame, filePath, commitId, selection, lineNumber, evolution, parentMethod, parentMethodLine } = data;
+    const { username, reponame, filePath, commitId, selection, lineNumber, evolution } = data;
     let params = `owner=${username}&repoName=${reponame}&filePath=${filePath.trim()}&commitId=${commitId}&selection=${selection.trim()}&lineNumber=${lineNumber}`;
-    if (parentMethod) {
-      params = params + `&parentMethod=${parentMethod}&parentMethodLine=${parentMethodLine}`;
-    }
+
 
     const getRequest = `${API_URL}/track?${params}`;
     console.log(getRequest);
@@ -460,15 +420,13 @@ class TreeView {
         let selectionText = this.selectionText;
         let filePath = this.filePath;
         let lineNumber = this.lineNumber;
-        let parentMethod = this.parentMethod;
-        let parentMethodLine = this.parentMethodLine;
         this.startData = {
           commitId: branch,
           lineNumber,
           filePath,
           selection: selectionText
         }
-        this.treeData = await this.getDataFromAPI({ username, reponame, filePath, commitId: branch, selection: selectionText, lineNumber, parentMethod, parentMethodLine });
+        this.treeData = await this.getDataFromAPI({ username, reponame, filePath, commitId: branch, selection: selectionText, lineNumber });
 
         this.drawTree(repo);
         this.$document.trigger(EVENT.REQ_END);
@@ -495,7 +453,7 @@ class TreeView {
       })
 
     document.addEventListener('click', async (event) => {
-      if (event.target.id !== "codeElementSubmit"){
+      if (event.target.id !== "codeElementSubmit") {
         await captureSelection();
       }
     });
@@ -519,11 +477,8 @@ class TreeView {
       this.filePath = $(fileDiv).data("tagsearch-path");
       let lineNumber = this.getLineNumberFromDOM_GET(selection.anchorNode.parentElement);
       this.lineNumber = lineNumber;
-      // let [parentMethod, parentMethodLine] = await this.getParentMethodFromDOM_GET(selection.anchorNode.parentElement);
-      // this.parentMethod = parentMethod;
-      // this.parentMethodLine = parentMethodLine;
-      
-      if (multiline){
+
+      if (multiline) {
         this.selectionText = selectionText.trim().split(" ")[0];
         console.log("ST", this.selectionText);
       }
@@ -538,11 +493,11 @@ class TreeView {
       this.selectionType = await this.getCodeElementType({ username, reponame, filePath, commitId: branch, selection: this.selectionText, lineNumber });
       $(document).trigger(EVENT.REQ_END);
       this._initialScreen();
-      
+
       this.updateCodeElementLabel(this.selectionType);
       if (this.selectionType !== "Invalid Element") {
         this.updateCodeElementSelectionField(this.selectionText);
-      } else {  
+      } else {
         this.updateCodeElementSelectionField(null);
       }
     }
@@ -659,22 +614,22 @@ class TreeView {
         "translate(" + margin.left + "," + margin.top + ")")
       .attr("id", "codetracker-svg-g")
 
-    for (let border of this.sessionBorders){
+    for (let border of this.sessionBorders) {
       d3.select('#codetracker-svg-g').append('rect')
-      .attr("class", "codetracker-rect")
-      .attr('width', '85')
-      .attr('height', border.height)
-      .attr('x', 50)
-      .attr('y', border.y)
-      .attr('fill', 'rgba(0,0,0,0)')
-      .attr('stroke', 'gray')
-      .attr('stroke-dasharray', '7')
-      .attr('stroke-linecap', 'round')
-      .attr('stroke-width', '3')
-      .attr("stroke-opacity", 0.2);
+        .attr("class", "codetracker-rect")
+        .attr('width', '85')
+        .attr('height', border.height)
+        .attr('x', 50)
+        .attr('y', border.y)
+        .attr('fill', 'rgba(0,0,0,0)')
+        .attr('stroke', 'gray')
+        .attr('stroke-dasharray', '7')
+        .attr('stroke-linecap', 'round')
+        .attr('stroke-width', '3')
+        .attr("stroke-opacity", 0.2);
     }
-      
-      var i = 0,
+
+    var i = 0,
       duration = 500,
       root;
 
@@ -702,10 +657,10 @@ class TreeView {
         let date = new Date();
         let timeId = "codetracker-" + date.getTime().toString();
         window.localStorage.setItem(timeId, JSON.stringify(this.treeData));
-        window.localStorage.setItem(timeId+"-borders", JSON.stringify(this.sessionBorders));
-        const state = `&treeDataId=${timeId}&selectionText=${encodeURIComponent(selectionText.trim())}`+
-        `&selectionType=${encodeURIComponent(this.selectionType.trim())}&filePath=${encodeURIComponent(filePath.trim())}`+
-        `&selection=${encodeURIComponent(selection.trim())}&lineNumber=${lineNumber}&nodeCount=${nodeCount}`;
+        window.localStorage.setItem(timeId + "-borders", JSON.stringify(this.sessionBorders));
+        const state = `&treeDataId=${timeId}&selectionText=${encodeURIComponent(selectionText.trim())}` +
+          `&selectionType=${encodeURIComponent(this.selectionType.trim())}&filePath=${encodeURIComponent(filePath.trim())}` +
+          `&selection=${encodeURIComponent(selection.trim())}&lineNumber=${lineNumber}&nodeCount=${nodeCount}`;
         window.location = url + state;
         return url;
       }
@@ -730,7 +685,7 @@ class TreeView {
 
         return "#fff";
       }
-      
+
       let toolTip;
 
       if ($("#codetracker-tooltip").length) {
@@ -926,8 +881,8 @@ class TreeView {
       function nodeMouseOver(event, d) {
         let changesString = "";
         let mappedChanges = d.data.changes.map((change) => { return change.split("<").join("&lt;") });
-        for (let i = 0; i < mappedChanges.length; i++){
-          changesString = changesString + (i+1) + ". " + mappedChanges[i] + "<br/>";
+        for (let i = 0; i < mappedChanges.length; i++) {
+          changesString = changesString + (i + 1) + ". " + mappedChanges[i] + "<br/>";
         }
         const toolTipContents = `
         <div>
