@@ -1,6 +1,6 @@
 {
   "name": "codetracker-extension",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "CodeTracker Frontend Browser Extension",
   "scripts": {
     "start": "gulp",
