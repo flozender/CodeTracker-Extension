@@ -361,8 +361,7 @@ class TreeView {
     this._removeTreeBody();
     $(document).trigger(EVENT.REQ_START);
     const { username, reponame, filePath, commitId, selection, lineNumber, evolution } = data;
-    let params = `owner=${username}&repoName=${reponame}&filePath=${filePath.trim()}&commitId=${commitId}&selection=${selection.trim()}&lineNumber=${lineNumber}`;
-
+    let params = `owner=${username}&repoName=${reponame}&filePath=${filePath.trim()}&commitId=${commitId}&selection=${encodeURIComponent(selection.trim())}&lineNumber=${lineNumber}`;
 
     const getRequest = `${API_URL}/track?${params}`;
     console.log(getRequest);
@@ -478,6 +477,8 @@ class TreeView {
       let lineNumber = this.getLineNumberFromDOM_GET(selection.anchorNode.parentElement);
       this.lineNumber = lineNumber;
 
+      // for entire blocks selected, get the block keyword and set it as the selectionText
+      // e.g. (for, while, if)
       if (multiline) {
         this.selectionText = selectionText.trim().split(" ")[0];
         console.log("ST", this.selectionText);
@@ -831,10 +832,8 @@ class TreeView {
 
       const getEvolutionHookData = async (node) => {
         const { username, reponame, evolutionHook, evolutionHookPath, evolutionHookLine, evolutionHookCommit } = node.data;
-        let parentMethod = evolutionHook.split("#")[1];
-        parentMethod = parentMethod.substring(0, parentMethod.indexOf("("));
-        console.log(`Evolution Hook Data for: ${parentMethod} in file ${evolutionHookPath} at line ${evolutionHookLine}`);
-        const childData = await this.getDataFromAPI({ username, reponame, filePath: evolutionHookPath, commitId: evolutionHookCommit, selection: parentMethod, lineNumber: evolutionHookLine, evolution: true });
+        console.log(`Evolution Hook Data for: ${evolutionHook} in file ${evolutionHookPath} at line ${evolutionHookLine}`);
+        const childData = await this.getDataFromAPI({ username, reponame, filePath: evolutionHookPath, commitId: evolutionHookCommit, selection: evolutionHook, lineNumber: evolutionHookLine, evolution: true });
         return childData;
       }
 
