@@ -64,7 +64,7 @@ class TreeView {
 
       let oracleResponse = await this.getOracleData();
       if (!continueTrack) {
-        let startCommit = oracleResponse.expectedChanges[0].commitId;
+        let startCommit = oracleResponse.expectedChanges[oracleResponse.expectedChanges.length - 1].commitId;
         console.log("NEW TRACK go to " + startCommit);
         if (!(window.location.toString().includes(startCommit))) {
           window.location = oracleResponse.repositoryWebURL.slice(0, -4) + "/commit/" + startCommit + "?continueTrack=true"
