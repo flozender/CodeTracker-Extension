@@ -225,6 +225,7 @@ class TreeView {
         throw "No expand all button";
       }
     } catch (err) {
+      console.log(err);
       console.log("Creating expand button");
       let tbody = $(node).find("tbody")
       try {
@@ -241,7 +242,7 @@ class TreeView {
         console.log(buttonDiv.children[1]);
         buttonDiv.children[1].children[0].click();
       } catch (err) {
-        console.log("Couldn't create expand button");
+        console.log("Couldn't create expand button " + err);
       };
     }
     await sleep(600);
