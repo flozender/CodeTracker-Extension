@@ -15,7 +15,9 @@ class TreeView {
     this.sessionFilePath;
     this.sessionSelection;
     this.sessionBorders = [];
-
+    this.leftSideDiff;
+    this.parentCommit;
+    this.parentCommitFilePath;
     this.startData;
   }
 
@@ -121,10 +123,49 @@ class TreeView {
       } catch (err) { }
     }
 
+    if (!lineNumber) {
+      try {
+        lineNumber = node.parentElement.parentElement.previousElementSibling.previousElementSibling.getAttribute("data-line-number");
+      } catch (err) { }
+    }
+
     return lineNumber;
   }
 
+  isLeftSideDiff = (node) => {
+    let leftSide = false;
+    if (node.parentElement.parentElement.getAttribute("data-split-side") === "left") {
+      leftSide = true;
+    }
+    else if (node.parentElement.getAttribute("data-split-side") === "left") {
+      leftSide = true;
+    }
+    else if (node.parentElement.previousElementSibling.getAttribute("data-side") === "left") {
+      leftSide = true;
+    }
 
+    return leftSide;
+  }
+
+  getParentCommit = () => {
+    let hrefSpan = $(document).find('div.commit-meta').children().last().children()[0];
+    let parentCommitUrl = $(hrefSpan).find('a').attr("href").split("/");
+    let parentCommit = parentCommitUrl[parentCommitUrl.length - 1];
+    console.log("parentCommit: " + parentCommit);
+    return parentCommit;
+  }
+
+  getParentCommitFileName = (fileDivNode) => {
+    let header = $(fileDivNode).children()[0];
+    let textDiv = $(header).children()[0];
+    let filePathSpan = $(textDiv).children().last();
+    let anchorTag = $(filePathSpan).children()[0];
+    let filePath = $(anchorTag).attr("title");
+    if (filePath.includes("→")) {
+      filePath = filePath.split(" → ")[0];
+    }
+    return filePath;
+  }
   // filepath div of the user selection
   getFileDivFromDOM = (node) => {
     if (!node) {
@@ -419,13 +460,14 @@ class TreeView {
         let selectionText = this.selectionText;
         let filePath = this.filePath;
         let lineNumber = this.lineNumber;
+        let commitId = this.leftSideDiff ? this.parentCommit : branch;
         this.startData = {
-          commitId: branch,
+          commitId,
           lineNumber,
           filePath,
           selection: selectionText
         }
-        this.treeData = await this.getDataFromAPI({ username, reponame, filePath, commitId: branch, selection: selectionText, lineNumber });
+        this.treeData = await this.getDataFromAPI({ username, reponame, filePath, commitId, selection: selectionText, lineNumber });
 
         this.drawTree(repo);
         this.$document.trigger(EVENT.REQ_END);
@@ -472,10 +514,17 @@ class TreeView {
 
       this.selectionText = selectionText;
 
-      let fileDiv = this.getFileDivFromDOM(selection.anchorNode.parentElement);
-      this.filePath = $(fileDiv).data("tagsearch-path");
       let lineNumber = this.getLineNumberFromDOM_GET(selection.anchorNode.parentElement);
       this.lineNumber = lineNumber;
+
+      let fileDiv = this.getFileDivFromDOM(selection.anchorNode.parentElement);
+      this.filePath = $(fileDiv).data("tagsearch-path");
+
+      this.leftSideDiff = this.isLeftSideDiff(selection.anchorNode.parentElement);
+      if (this.leftSideDiff) {
+        this.parentCommit = this.getParentCommit(selection.anchorNode.parentElement);
+        this.filePath = this.getParentCommitFileName(fileDiv);
+      }
 
       // for entire blocks selected, get the block keyword and set it as the selectionText
       // e.g. (for, while, if)
@@ -487,11 +536,13 @@ class TreeView {
       selection.anchorNode.parentElement.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
 
       const { username, reponame, branch } = repo;
+      let commitId = this.leftSideDiff ? this.parentCommit : branch;
+
       let filePath = this.filePath;
 
       this._removeTreeBody();
       $(document).trigger(EVENT.REQ_START);
-      this.selectionType = await this.getCodeElementType({ username, reponame, filePath, commitId: branch, selection: this.selectionText, lineNumber });
+      this.selectionType = await this.getCodeElementType({ username, reponame, filePath, commitId, selection: this.selectionText, lineNumber });
       $(document).trigger(EVENT.REQ_END);
       this._initialScreen();
 
