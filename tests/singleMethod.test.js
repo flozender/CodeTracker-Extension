@@ -107,7 +107,7 @@ describe('Track methods', () => {
         let changeType = CHANGES[i]['changeType'];
         let commitId = CHANGES[i]['commitId']
         await expect(await node.evaluate((n) => {
-            return JSON.parse(n.getAttribute('data-changes'))[0].toLowerCase();
+            return JSON.parse(n.getAttribute('data-changes'))[0].split(':')[0].toLowerCase();
         })).toContain(changeType);
 
         let circleSelector = `#codetracker-svg-g > g:nth-child(${changeLength + i}) > a`;

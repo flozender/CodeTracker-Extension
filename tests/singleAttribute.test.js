@@ -1,9 +1,9 @@
 // await jestPuppeteer.debug();
-const puppeteer = require("puppeteer");
-const { blue, cyan, green, magenta, red, yellow } = require('colorette');
+const puppeteer = require('puppeteer');
+const {blue, cyan, green, magenta, red, yellow} = require('colorette');
 
-let file = require("./oracle/attribute/training/checkstyle-Checker-basedir.json");
-let URL = file.repositoryWebURL.replace(".git", "/blob/" + file.startCommitId + "/" + file.filePath);
+let file = require('./oracle/attribute/training/checkstyle-Checker-basedir.json');
+let URL = file.repositoryWebURL.replace('.git', '/blob/' + file.startCommitId + '/' + file.filePath);
 let ATTRIBUTE_NAME = file.attributeName;
 let START_LINE = file.attributeDeclarationLine;
 let CHANGES = file.expectedChanges;
@@ -13,7 +13,7 @@ jest.setTimeout(15000);
 describe('Track attributes', () => {
 
     beforeAll(async () => {
-        await page.goto(`${URL}`, { waitUntil: 'networkidle2' });
+        await page.goto(`${URL}`, {waitUntil: 'networkidle2'});
 
         let loadExtension = async () => {
             const pathToExtension = require('path').join(__dirname, '../tmp/chrome');
@@ -25,7 +25,7 @@ describe('Track attributes', () => {
                 ],
             });
             const backgroundPageTarget = await browser.waitForTarget(
-                target => target.type() === 'background_page'
+                (target) => target.type() === 'background_page'
             );
             const backgroundPage = await backgroundPageTarget.page();
             // Test the background page as you would any other page.
@@ -34,9 +34,9 @@ describe('Track attributes', () => {
         await loadExtension();
 
         let pageContent = await page.content();
-        if (!pageContent.includes("octotree-pinned")) {
-            let pinButton = await page.$("body > nav > div.octotree-main-icons > a.octotree-pin")
-            await pinButton.evaluate(b => b.click());
+        if (!pageContent.includes('octotree-pinned')) {
+            let pinButton = await page.$('body > nav > div.octotree-main-icons > a.octotree-pin')
+            await pinButton.evaluate((b) => b.click());
         }
         await page.waitForTimeout(500);
         // page
@@ -58,7 +58,7 @@ describe('Track attributes', () => {
 
         await page.waitForTimeout(500);
         await expect(page.content()).resolves.toContain('codeElementField');
-        let codeElementField = await page.$("#codeElementField");
+        let codeElementField = await page.$('#codeElementField');
 
         await page.evaluate(async (START_LINE, ATTRIBUTE_NAME) => {
             const SelectText = (element) => {
@@ -90,14 +90,14 @@ describe('Track attributes', () => {
             return true;
         }, START_LINE, ATTRIBUTE_NAME);
 
-        let label = await page.$("#codeElementLabel")
-        await label.evaluate(b => b.click());
+        let label = await page.$('#codeElementLabel')
+        await label.evaluate((b) => b.click());
 
-        await page.waitForResponse(response => response.status() === 200);
+        await page.waitForResponse((response) => response.status() === 200);
         await page.waitForTimeout(500);
 
-        let trackButton = await page.$("#codeElementSubmit")
-        await trackButton.evaluate(b => b.click());
+        let trackButton = await page.$('#codeElementSubmit')
+        await trackButton.evaluate((b) => b.click());
         await page.waitForTimeout(500);
 
         await expect(await page.evaluate(() => {
@@ -111,7 +111,7 @@ describe('Track attributes', () => {
     });
 
     it('should load the change history', async () => {
-        await page.waitForResponse(response => response.status() === 200);
+        await page.waitForResponse((response) => response.status() === 200);
         await expect(page.content()).resolves.toContain('codetracker-svg');
     });
 
@@ -122,17 +122,17 @@ describe('Track attributes', () => {
         let changeLength = changeSet.size + 1;
         let nodeSelector = `#codetracker-svg-g > g:nth-child(${changeLength + i})`;
         let node = await page.waitForSelector(nodeSelector);
-        let changeType = CHANGES[i]["changeType"];
-        let commitId = CHANGES[i]["commitId"]
+        let changeType = CHANGES[i]['changeType'];
+        let commitId = CHANGES[i]['commitId']
         await expect(await node.evaluate((n) => {
-            return n.getAttribute("data-changes");
+            return JSON.parse(n.getAttribute('data-changes'))[0].split(':')[0].toLowerCase();
         })).toContain(changeType);
 
         let circleSelector = `#codetracker-svg-g > g:nth-child(${changeLength + i}) > circle`;
         let commitLink = await page.waitForSelector(circleSelector);
 
         await commitLink.click();
-        await page.waitForResponse(response => response.status() === 200);
+        await page.waitForResponse((response) => response.status() === 200);
         await page.waitForNavigation();
         await page.waitForTimeout(500);
         await expect(await page.evaluate(() => {
@@ -147,9 +147,9 @@ describe('Track attributes', () => {
         // let diffButton = await page.waitForSelector("#toc > div.d-flex.d-inline-block > form > div > button.selected.btn-sm.btn.BtnGroup-item");
         // await diffButton.click();
         await page.waitForTimeout(1000);
-        await expect(await page.content()).toContain("selected-line");
+        await expect(await page.content()).toContain('selected-line');
         attributeName = CHANGES[0].elementNameAfter;
-        lineNumber = attributeName.slice(attributeName.lastIndexOf("(") + 1, attributeName.lastIndexOf(")"))
+        lineNumber = attributeName.slice(attributeName.lastIndexOf('(') + 1, attributeName.lastIndexOf(')'))
         let correctLineSelected = await page.evaluate((lineNumber) => {
             return window.location.toString().endsWith(`R${lineNumber}`);
         }, lineNumber);
