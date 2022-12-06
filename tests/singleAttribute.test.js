@@ -144,6 +144,7 @@ describe('Track attributes', () => {
         await page.waitForNavigation();
         // let filesButton = await page.waitForSelector("#show-file-tree-button");
         // await filesButton.evaluate((b)=>b.click());
+        // eslint-disable-next-line max-len
         // let diffButton = await page.waitForSelector("#toc > div.d-flex.d-inline-block > form > div > button.selected.btn-sm.btn.BtnGroup-item");
         // await diffButton.click();
         await page.waitForTimeout(1000);

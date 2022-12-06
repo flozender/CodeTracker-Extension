@@ -1,9 +1,9 @@
 // await jestPuppeteer.debug();
-const puppeteer = require("puppeteer");
-const { blue, cyan, green, magenta, red, yellow } = require('colorette')
+const puppeteer = require('puppeteer');
+const {blue, cyan, green, magenta, red, yellow} = require('colorette')
 
-let file = require("./oracle/method/training/checkstyle-Checker-fireErrors.json");
-let URL = file.repositoryWebURL.replace(".git", "/blob/" + file.startCommitId + "/" + file.filePath);
+let file = require('./oracle/method/training/checkstyle-Checker-fireErrors.json');
+let URL = file.repositoryWebURL.replace('.git', '/blob/' + file.startCommitId + '/' + file.filePath);
 let FUNCTION_NAME = file.functionName;
 let START_LINE = file.functionStartLine;
 let CHANGES = file.expectedChanges;
@@ -25,7 +25,7 @@ describe('Track methods', () => {
                 ],
             });
             const backgroundPageTarget = await browser.waitForTarget(
-                target => target.type() === 'background_page'
+                (target) => target.type() === 'background_page'
             );
             const backgroundPage = await backgroundPageTarget.page();
             // Test the background page as you would any other page.
@@ -33,8 +33,11 @@ describe('Track methods', () => {
         }
         await loadExtension();
 
-        let pinButton = await page.$("body > nav > div.octotree-main-icons > a.octotree-pin")
-        await pinButton.evaluate(b => b.click());
+        let pageContent = await page.content();
+        if (!pageContent.includes('octotree-pinned')) {
+            let pinButton = await page.$('body > nav > div.octotree-main-icons > a.octotree-pin')
+            await pinButton.evaluate((b) => b.click());
+        }
         await page.waitForTimeout(500);
     });
 
@@ -42,7 +45,7 @@ describe('Track methods', () => {
     it('should select the method', async () => {
         await page.waitForTimeout(500);
         await expect(page.content()).resolves.toContain('codeElementField');
-        let codeElementField = await page.$("#codeElementField");
+        let codeElementField = await page.$('#codeElementField');
 
         await page.evaluate(async (START_LINE) => {
             let i = 0;
@@ -67,13 +70,14 @@ describe('Track methods', () => {
             return true;
         }, START_LINE);
 
-        let label = await page.$("#codeElementLabel")
-        await label.evaluate(b => b.click());
+        let label = await page.$('#codeElementLabel')
+        await label.evaluate((b) => b.click());
 
-        await page.waitForResponse(response => response.status() === 200);
+        await page.waitForResponse((response) => response.status() === 200);
+        await page.waitForTimeout(500);
 
-        let trackButton = await page.$("#codeElementSubmit")
-        await trackButton.evaluate(b => b.click());
+        let trackButton = await page.$('#codeElementSubmit')
+        await trackButton.evaluate((b) => b.click());
         await page.waitForTimeout(500);
 
 
@@ -85,42 +89,46 @@ describe('Track methods', () => {
 
         let codeElementText = await codeElementField.evaluate((c) => c.value);
         await expect(codeElementText === FUNCTION_NAME).toBeTruthy();
+    });
 
-        await page.waitForResponse(response => response.status() === 200);
-        await page.waitForTimeout(500);
+    it('should load the change history', async () => {
+        await page.waitForResponse((response) => response.status() === 200);
         await expect(page.content()).resolves.toContain('codetracker-svg');
-        await page.waitForTimeout(500);
+    });
 
+    it('should load commit page on node click', async () => {
+        await page.waitForTimeout(500);
         let i = 0;
         let changeSet = new Set(CHANGES.map((c) => c.commitId));
         let changeLength = changeSet.size + 1;
-        console.log(changeLength)
         let nodeSelector = `#codetracker-svg-g > g:nth-child(${changeLength + i})`;
-        
+        console.log(nodeSelector);
         let node = await page.waitForSelector(nodeSelector);
-        let changeType = CHANGES[i]["changeType"];
-        let commitId = CHANGES[i]["commitId"]
+        let changeType = CHANGES[i]['changeType'];
+        let commitId = CHANGES[i]['commitId']
         await expect(await node.evaluate((n) => {
-            return n.getAttribute("data-changes");
+            return JSON.parse(n.getAttribute('data-changes'))[0].split(':')[0].toLowerCase();
         })).toContain(changeType);
 
-        let circleSelector = `#codetracker-svg-g > g:nth-child(${changeLength + i}) > circle`;
+        let circleSelector = `#codetracker-svg-g > g:nth-child(${changeLength + i}) > a`;
         let commitLink = await page.waitForSelector(circleSelector);
 
         await commitLink.click();
-        await page.waitForResponse(response => response.status() === 200);
+        await page.waitForResponse((response) => response.status() === 200);
         await page.waitForNavigation();
         await page.waitForTimeout(500);
         await expect(await page.evaluate(()=>{
             return window.location.toString();
         })).toContain(commitId);
+    });
 
+    it('should highlight the correct line', async()=>{
         await page.waitForNavigation();
         await page.waitForTimeout(1000);
         
-        await expect(await page.content()).toContain("selected-line");
+        await expect(await page.content()).toContain('selected-line');
         let correctLineSelected = await page.evaluate((FUNCTION_NAME)=>{
-            let td = document.querySelectorAll("td.selected-line.selected-line-top.selected-line-bottom");
+            let td = document.querySelectorAll('td.selected-line.selected-line-top.selected-line-bottom');
             td = td[td.length-1];
             if (td.textContent.includes(FUNCTION_NAME)){
                 return true;
@@ -140,5 +148,7 @@ describe('Track methods', () => {
         }, FUNCTION_NAME);
 
         await expect(correctLineSelected).toBeTruthy();
-    });
+    })
+
 });
+

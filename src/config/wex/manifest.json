@@ -2,7 +2,7 @@
   "name": "CodeTracker",
   "version": "$VERSION",
   "description": "Visualize code refactoring history",
-  "homepage_url": "https://www.octotree.io",
+  "homepage_url": "https://users.encs.concordia.ca/~nikolaos/",
   "author": "Tayeeb Hasan",
   "manifest_version": 2,
   "minimum_chrome_version": "60",
