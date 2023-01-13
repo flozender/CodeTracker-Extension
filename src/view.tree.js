@@ -390,6 +390,12 @@ class TreeView {
   getCodeElementType = async (data) => {
     const { username, reponame, filePath, commitId, selection, lineNumber } = data;
     let params = `owner=${username}&repoName=${reponame}&filePath=${filePath}&commitId=${commitId}&selection=${selection}&lineNumber=${lineNumber}`;
+    const githubToken = await octotree.getAccessToken();
+
+    if (githubToken !== null) {
+      params = params + `&githubToken=${githubToken}`;
+    }
+
     const getRequest = `${API_URL}/codeElementType?${params}`;
     let response = await fetch(getRequest)
       .then(response => response.json());
@@ -403,6 +409,11 @@ class TreeView {
     $(document).trigger(EVENT.REQ_START);
     const { username, reponame, filePath, commitId, selection, lineNumber, evolution } = data;
     let params = `owner=${username}&repoName=${reponame}&filePath=${filePath.trim()}&commitId=${commitId}&selection=${encodeURIComponent(selection.trim())}&lineNumber=${lineNumber}`;
+    const githubToken = await octotree.getAccessToken();
+
+    if (githubToken !== null){
+      params = params + `&githubToken=${githubToken}`;
+    }
 
     const getRequest = `${API_URL}/track?${params}`;
     console.log(getRequest);
@@ -830,7 +841,7 @@ class TreeView {
       nodeExit.select('circle')
         .attr('r', 1e-6);
 
-      // On exit reduce the opacity of text lables  
+      // On exit reduce the opacity of text lables
       nodeExit.select('text')
         .style('fill-opacity', 1e-6)
 
