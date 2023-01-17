@@ -376,7 +376,9 @@ class TreeView {
         evolutionHookLine,
         evolutionHookPath,
         evolutionHookCommit,
-        codeElement: commit.after.trim()
+        codeElement: commit.after.trim(),
+        beforeLine: commit.beforeLine,
+        afterLine: commit.afterLine
       }
       treeData.push(child);
       treeData = child['children'];
@@ -949,6 +951,8 @@ class TreeView {
         <div>
         <em>${d.data.codeElement}</em>
         <hr style="margin: 7px 0px;"/>
+        <p>Mapping: L${d.data.beforeLine} <--> R${d.data.afterLine}</p>
+        <hr style="margin: 3px 0px;"/>
         By <b>${d.data.committer}</b>, ${timeSince(d.data.date.split("T")[0])}
         <br/>
         <p style="font-style: italics; margin-bottom: 15px;">${changesString}</p>
