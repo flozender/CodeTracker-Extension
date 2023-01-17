@@ -64,7 +64,9 @@ class TreeView {
 
       let oracleResponse = await this.getOracleData();
       if (!continueTrack) {
-        let startCommit = oracleResponse.expectedChanges[oracleResponse.expectedChanges.length - 1].commitId;
+        // to get the last commit
+        // let startCommit = oracleResponse.expectedChanges[oracleResponse.expectedChanges.length - 1].commitId;
+        let startCommit = oracleResponse.expectedChanges[0].commitId;
         console.log("NEW TRACK go to " + startCommit);
         if (!(window.location.toString().includes(startCommit))) {
           window.location = oracleResponse.repositoryWebURL.slice(0, -4) + "/commit/" + startCommit + "?continueTrack=true"
@@ -359,7 +361,8 @@ class TreeView {
         username,
         reponame,
         children: [],
-        codeElement: commit.elementNameAfter.trim()
+        codeElement: commit.elementNameAfter.trim(),
+        matchedElement: commit.elementNameBefore.trim()
       }
       treeData.push(child);
       treeData = child['children'];
@@ -944,7 +947,7 @@ class TreeView {
       nodeExit.select('circle')
         .attr('r', 1e-6);
 
-      // On exit reduce the opacity of text lables  
+      // On exit reduce the opacity of text lables
       nodeExit.select('text')
         .style('fill-opacity', 1e-6)
 
@@ -1051,7 +1054,8 @@ class TreeView {
 
         const toolTipContents = `
         <div>
-        <em>${d.data.codeElement}</em>
+        <em>${d.data.matchedElement.split("$")[1]}</em> <-->
+        <em>${d.data.codeElement.split("$")[1]}</em>
         <hr style="margin: 7px 0px;"/>
         <p style="font-style: italics; margin-bottom: 15px;">${changesString}</p>
         <b>${d.data.commitId}</b>
