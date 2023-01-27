@@ -72,6 +72,20 @@ class TreeView {
           window.location = oracleResponse.repositoryWebURL.slice(0, -4) + "/commit/" + startCommit + "?continueTrack=true"
         }
       }
+
+
+      this.selectionText = oracleResponse.attributeName;
+      this.selectionType = 'attribute';
+      let currentSessionCommit = oracleResponse.expectedChanges.filter(change => change.commitId === repo.branch)[0];
+      this.currentSessionCommit = currentSessionCommit;
+      this.sessionFilePath = currentSessionCommit.elementFileAfter;
+      this.sessionSelection = currentSessionCommit.elementNameAfter;
+      let blockKey = currentSessionCommit.elementNameAfter.split("@")[1];
+      let lineNumbers = blockKey.slice(blockKey.lastIndexOf("(") + 1, blockKey.lastIndexOf(")"));
+      let lineNumber = lineNumbers;
+      this.sessionLineNumber = lineNumber;
+      this.nodeCount = oracleResponse.expectedChanges.length + 5;
+
       let treeDataOracle = this.transformDataForTreeOracle(oracleResponse);
       console.log("TREE ORACLE", treeDataOracle);
 
@@ -79,17 +93,6 @@ class TreeView {
 
       this.treeData = treeDataOracle;
 
-
-      this.selectionText = oracleResponse.blockType;
-      this.selectionType = 'block';
-      let currentSessionCommit = oracleResponse.expectedChanges.filter(change => change.commitId === repo.branch)[0];
-      this.sessionFilePath = currentSessionCommit.elementFileAfter;
-      this.sessionSelection = currentSessionCommit.elementNameAfter;
-      let blockKey = currentSessionCommit.elementNameAfter.split("$")[1];
-      let lineNumbers = blockKey.slice(blockKey.indexOf("(") + 1, blockKey.indexOf(")")).split("-");
-      let lineNumber = lineNumbers[0];
-      this.sessionLineNumber = lineNumber;
-      this.nodeCount = oracleResponse.expectedChanges.length + 5;
 
       if (this.selectionText) {
         this.updateCodeElementSelectionField(this.selectionText)
@@ -341,9 +344,13 @@ class TreeView {
     // let parent = branch.substring(0, 7);
     for (let commit of data) {
       let filePath = commit.elementFileAfter;
-      let blockKey = commit.elementNameAfter.split("$")[1];
-      let lineNumbers = blockKey.slice(blockKey.indexOf("(") + 1, blockKey.indexOf(")")).split("-");
-      let lineNumber = lineNumbers[0];
+      const currentSessionCommit = this.currentSessionCommit;
+      console.log("Current", currentSessionCommit)
+
+      let blockKey = currentSessionCommit.elementNameAfter.split("@")[1];
+      console.log("BLOCK KEY", blockKey);
+      let lineNumbers = blockKey.slice(blockKey.lastIndexOf("(") + 1, blockKey.lastIndexOf(")"));
+      let lineNumber = lineNumbers;
       let selection = commit.elementNameAfter.trim();
       selection = selection.substring(0, selection.indexOf("("));
       selection = selection.trim();
@@ -1054,8 +1061,8 @@ class TreeView {
 
         const toolTipContents = `
         <div>
-        <em>${d.data.matchedElement.split("$")[1]}</em> <-->
-        <em>${d.data.codeElement.split("$")[1]}</em>
+        <em>${d.data.matchedElement.split("@")[1].slice(d.data.matchedElement.split("@")[1].lastIndexOf("("))}</em> <-->
+        <em>${d.data.codeElement.split("@")[1].slice(d.data.codeElement.split("@")[1].lastIndexOf("("))}</em>
         <hr style="margin: 7px 0px;"/>
         <p style="font-style: italics; margin-bottom: 15px;">${changesString}</p>
         <b>${d.data.commitId}</b>
