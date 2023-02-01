@@ -70,7 +70,7 @@ class GitHub extends PjaxAdapter {
   getCreateTokenUrl() {
     return (
       `${location.protocol}//${location.host}/settings/tokens/new?` +
-      'scopes=repo&description=Octotree%20browser%20extension'
+      'scopes=repo&description=CodeTracker%20browser%20extension'
     );
   }
 

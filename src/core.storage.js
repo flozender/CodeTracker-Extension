@@ -135,7 +135,7 @@ class ExtStore {
           localStorage.setItem(key, value);
         } catch (e) {
           const msg =
-            'Octotree cannot save its settings. ' +
+            'CodeTracker cannot save its settings. ' +
             'If the local storage for this domain is full, please clean it up and try again.';
           console.error(msg, e);
         }

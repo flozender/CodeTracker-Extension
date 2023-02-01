@@ -176,7 +176,7 @@ class Adapter {
           error = 'API limit exceeded';
           message =
             'You have exceeded the <a href="https://developer.github.com/v3/#rate-limiting">GitHub API rate limit</a>. ' +
-            'To continue using Octotree, you need to provide a GitHub access token. ' +
+            'To continue using CodeTracker, you need to provide a GitHub access token. ' +
             'Please go to <a class="settings-btn">Settings</a> and enter a token.';
         } else {
           error = 'Forbidden';
