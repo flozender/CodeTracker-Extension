@@ -44,14 +44,14 @@ class TreeView {
     $("#codeElementSubmit").attr("disabled", false);
   }
 
-  updateCodeElementLabel(type) {
+  updateCodeElementLabel(type, error) {
     let label = "Selected "
-    if (type !== "Invalid Element") {
+    if (error) {
+      label = error;
+      $("#codeElementLabel").removeClass("valid-element").addClass("invalid-element")
+    } else {
       label += type;
       $("#codeElementLabel").removeClass("invalid-element").addClass("valid-element")
-    } else {
-      label = "Unsupported code element"
-      $("#codeElementLabel").removeClass("valid-element").addClass("invalid-element")
     }
     $("#codeElementLabel").text(label);
   }
@@ -392,10 +392,10 @@ class TreeView {
   getCodeElementType = async (data) => {
     const { username, reponame, filePath, commitId, selection, lineNumber } = data;
     let params = `owner=${username}&repoName=${reponame}&filePath=${filePath}&commitId=${commitId}&selection=${selection}&lineNumber=${lineNumber}`;
-    const githubToken = await octotree.getAccessToken();
+    const gitHubToken = await octotree.getAccessToken();
 
-    if (githubToken !== null) {
-      params = params + `&githubToken=${githubToken}`;
+    if (gitHubToken !== null) {
+      params = params + `&gitHubToken=${gitHubToken}`;
     }
 
     const getRequest = `${API_URL}/codeElementType?${params}`;
@@ -403,7 +403,7 @@ class TreeView {
       .then(response => response.json());
     let codeElementType = response.type;
     console.log(codeElementType);
-    return codeElementType;
+    return {codeElementType, error: response.error};
   }
 
   getDataFromAPI = async (data) => {
@@ -411,10 +411,10 @@ class TreeView {
     $(document).trigger(EVENT.REQ_START);
     const { username, reponame, filePath, commitId, selection, lineNumber, evolution } = data;
     let params = `owner=${username}&repoName=${reponame}&filePath=${filePath.trim()}&commitId=${commitId}&selection=${encodeURIComponent(selection.trim())}&lineNumber=${lineNumber}`;
-    const githubToken = await octotree.getAccessToken();
+    const gitHubToken = await octotree.getAccessToken();
 
-    if (githubToken !== null){
-      params = params + `&githubToken=${githubToken}`;
+    if (gitHubToken !== null){
+      params = params + `&gitHubToken=${gitHubToken}`;
     }
 
     const getRequest = `${API_URL}/track?${params}`;
@@ -555,15 +555,15 @@ class TreeView {
 
       this._removeTreeBody();
       $(document).trigger(EVENT.REQ_START);
-      this.selectionType = await this.getCodeElementType({ username, reponame, filePath, commitId, selection: this.selectionText, lineNumber });
+      let {codeElementType, error} = await this.getCodeElementType({ username, reponame, filePath, commitId, selection: this.selectionText, lineNumber });
       $(document).trigger(EVENT.REQ_END);
       this._initialScreen();
-
-      this.updateCodeElementLabel(this.selectionType);
-      if (this.selectionType !== "Invalid Element") {
-        this.updateCodeElementSelectionField(this.selectionText);
-      } else {
+      this.selectionType = codeElementType;
+      this.updateCodeElementLabel(this.selectionType, error);
+      if (error) {
         this.updateCodeElementSelectionField(null);
+      } else {
+        this.updateCodeElementSelectionField(this.selectionText);
       }
     }
   }
